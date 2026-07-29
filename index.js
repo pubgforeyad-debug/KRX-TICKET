@@ -820,7 +820,60 @@ await interaction.channel.delete();
 },5000);
 
 });
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
 
+  if (!message.content.startsWith("!dm")) return;
+
+  if (!message.member.permissions.has("Administrator")) {
+    return message.reply("❌ ليس لديك صلاحية.");
+  }
+
+  const member = message.mentions.members.first();
+  if (!member) return message.reply("منشن العضو.");
+
+  const args = message.content.split(" ").slice(2);
+  const text = args.join(" ");
+
+  if (!text) return message.reply("اكتب الرسالة.");
+
+  try {
+    await member.send(text);
+    message.reply("✅ تم إرسال الرسالة في الخاص.");
+  } catch {
+    message.reply("❌ تعذر إرسال الرسالة، ربما الخاص مغلق.");
+  }
+});
+
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
+  if (!message.content.startsWith("!dms")) return;
+
+  if (!message.member.permissions.has("Administrator")) {
+    return message.reply("❌ ليس لديك صلاحية.");
+  }
+
+  const text = message.content.split(" ").slice(1).join(" ");
+
+  if (!text) return message.reply("اكتب الرسالة.");
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const member of message.guild.members.cache.values()) {
+    if (member.user.bot) continue;
+
+    try {
+      await member.send(text);
+      sent++;
+    } catch {
+      failed++;
+    }
+  }
+
+  message.reply(`✅ تم الإرسال إلى ${sent} عضو.\n❌ فشل الإرسال إلى ${failed} عضو.`);
+});
 
 // =========================
 // تشغيل البوت
