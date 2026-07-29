@@ -498,7 +498,7 @@ client.on("messageCreate", async (message) => {
 
 if(message.author.bot) return;
 
-if(!message.content.startsWith("!point ")) return;
+if(!message.content.startsWith("+point ")) return;
 
 const isAdmin =
 SUPPORT_ADMIN.some(r=>message.member.roles.cache.has(r)) ||
@@ -592,7 +592,7 @@ client.on("messageCreate", async (message) => {
 
 if(message.author.bot) return;
 
-if(message.content !== "!top") return;
+if(message.content !== "$top") return;
 
 const top = Object.entries(points)
 
