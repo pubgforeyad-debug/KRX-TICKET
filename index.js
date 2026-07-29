@@ -24,7 +24,7 @@ const client = new Client({
 
 // ================= الإعدادات =================
 
-const TICKET_CATEGORY = "1531255683822125226";
+const TICKET_CATEGORY = "1531926623580979230";
 
 const RATING_CHANNEL = "1531943465091596402";
 
