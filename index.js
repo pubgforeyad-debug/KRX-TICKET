@@ -15,11 +15,9 @@ require("dotenv").config();
 const client = new Client({
 
   intents: [
-
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent
-
   ]
 
 });
@@ -36,62 +34,45 @@ const HIGH_ADMIN = [
 ];
 
 
-// الإدارة الصغرى + الوسطاء (الدعم)
+// الإدارة الصغرى فقط (الدعم)
 const SUPPORT_ADMIN = [
   "1528157557192134726",
-  "1528157558416609331",
-  "1528157507665658018",
-  "1528157508869558463"
+  "1528157558416609331"
 ];
 
 
 
-
-// عند تشغيل البوت
+// تشغيل البوت
 client.once("ready", () => {
-
-  console.log(`✅ البوت شغال: ${client.user.tag}`);
-
+  console.log(`✅ Online: ${client.user.tag}`);
 });
 
 
 
 
-
-// أمر إنشاء الأزرار
+// إنشاء لوحة التذاكر
 client.on("messageCreate", async message => {
-
 
   if(message.author.bot) return;
 
 
-  if(message.content === "!setup"){
+  if(message.content === "!setup") {
 
 
     const apply = new ButtonBuilder()
-
       .setCustomId("apply_ticket")
-
       .setLabel("📝 تقديم إدارة")
-
       .setStyle(ButtonStyle.Success);
 
 
-
     const support = new ButtonBuilder()
-
       .setCustomId("support_ticket")
-
       .setLabel("🎧 دعم")
-
       .setStyle(ButtonStyle.Primary);
 
 
-
     const row = new ActionRowBuilder()
-
       .addComponents(apply, support);
-
 
 
     await message.channel.send({
@@ -105,7 +86,6 @@ client.on("messageCreate", async message => {
 
   }
 
-
 });
 
 
@@ -113,13 +93,11 @@ client.on("messageCreate", async message => {
 
 
 
-
-// التعامل مع الأزرار
+// فتح التذاكر
 client.on(Events.InteractionCreate, async interaction => {
 
 
  if(!interaction.isButton()) return;
-
 
 
  let type;
@@ -127,21 +105,19 @@ client.on(Events.InteractionCreate, async interaction => {
 
 
 
- if(interaction.customId === "apply_ticket"){
+ if(interaction.customId === "apply_ticket") {
 
-  type = "تقديم";
-
-  roles = HIGH_ADMIN;
+   type = "تقديم";
+   roles = HIGH_ADMIN;
 
  }
 
 
 
- if(interaction.customId === "support_ticket"){
+ if(interaction.customId === "support_ticket") {
 
-  type = "دعم";
-
-  roles = SUPPORT_ADMIN;
+   type = "دعم";
+   roles = SUPPORT_ADMIN;
 
  }
 
@@ -151,28 +127,25 @@ client.on(Events.InteractionCreate, async interaction => {
 
 
 
-
-
- // منع فتح أكثر من تيكت
+ // منع تكرار التذكرة
  const exists = interaction.guild.channels.cache.find(
 
-  c => c.name.includes(interaction.user.username)
+   c => c.name.includes(interaction.user.username)
 
  );
 
 
- if(exists){
+ if(exists) {
 
-  return interaction.reply({
+   return interaction.reply({
 
-   content:"❌ لديك تذكرة مفتوحة بالفعل",
+     content:"❌ لديك تذكرة مفتوحة بالفعل",
 
-   ephemeral:true
+     ephemeral:true
 
-  });
+   });
 
  }
-
 
 
 
@@ -180,74 +153,57 @@ client.on(Events.InteractionCreate, async interaction => {
  // إنشاء الروم
  const ticket = await interaction.guild.channels.create({
 
-  name:`🎫-${type}-${interaction.user.username}`,
+   name:`🎫-${type}-${interaction.user.username}`,
 
-  type:ChannelType.GuildText,
+   type:ChannelType.GuildText,
 
-  parent:TICKET_CATEGORY,
-
-
-  permissionOverwrites:[
+   parent:TICKET_CATEGORY,
 
 
-   {
-
-    id:interaction.guild.id,
-
-    deny:[
-
-     PermissionsBitField.Flags.ViewChannel
-
-    ]
-
-   },
+   permissionOverwrites:[
 
 
+     {
+       id:interaction.guild.id,
 
-   {
-
-    id:interaction.user.id,
-
-    allow:[
-
-     PermissionsBitField.Flags.ViewChannel,
-
-     PermissionsBitField.Flags.SendMessages
-
-    ]
-
-   },
+       deny:[
+        PermissionsBitField.Flags.ViewChannel
+       ]
+     },
 
 
+     {
+       id:interaction.user.id,
 
-   ...roles.map(role => ({
+       allow:[
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages
+       ]
 
-
-    id:role,
-
-    allow:[
-
-     PermissionsBitField.Flags.ViewChannel,
-
-     PermissionsBitField.Flags.SendMessages
-
-    ]
+     },
 
 
-   }))
+     ...roles.map(role => ({
 
+       id:role,
 
-  ]
+       allow:[
 
+        PermissionsBitField.Flags.ViewChannel,
+
+        PermissionsBitField.Flags.SendMessages
+
+       ]
+
+     }))
+
+   ]
 
  });
 
 
 
-
-
-
-
+ // زر الإغلاق
  const close = new ButtonBuilder()
 
  .setCustomId("close_ticket")
@@ -264,34 +220,29 @@ client.on(Events.InteractionCreate, async interaction => {
 
 
 
-
- const mention = roles.map(r => `<@&${r}>`).join(" ");
-
+ const mention = roles.map(role => `<@&${role}>`).join(" ");
 
 
 
  await ticket.send({
 
-  content:
+   content:
 
-  `${interaction.user} 👋\n${mention}\n\nاكتب طلبك هنا.`,
+   `${mention}\n${interaction.user} 👋\n\nاكتب طلبك هنا.`,
 
-  components:[row]
+   components:[row]
 
  });
-
-
 
 
 
  await interaction.reply({
 
-  content:`✅ تم فتح تذكرتك: ${ticket}`,
+   content:`✅ تم فتح التذكرة: ${ticket}`,
 
-  ephemeral:true
+   ephemeral:true
 
  });
-
 
 
 });
@@ -302,7 +253,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
 
 
-// زر إغلاق التذكرة
+// إغلاق التذكرة
 client.on(Events.InteractionCreate, async interaction => {
 
 
@@ -312,25 +263,19 @@ client.on(Events.InteractionCreate, async interaction => {
 
   interaction.customId === "close_ticket"
 
- ){
+ ) {
 
 
-  await interaction.reply({
-
-   content:"🔒 سيتم إغلاق التذكرة بعد 5 ثواني"
-
-  });
-
+  await interaction.reply(
+    "🔒 سيتم إغلاق التذكرة بعد 5 ثواني"
+  );
 
 
   setTimeout(()=>{
 
-
-   interaction.channel.delete();
-
+    interaction.channel.delete();
 
   },5000);
-
 
 
  }
@@ -341,8 +286,5 @@ client.on(Events.InteractionCreate, async interaction => {
 
 
 
-
-
-
-// تشغيل البوت من Railway
+// توكن Railway
 client.login(process.env.TOKEN);
