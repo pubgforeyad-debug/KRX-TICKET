@@ -22,18 +22,23 @@ const client = new Client({
 });
 
 
-// الكاتيجوري
+// ================= الإعدادات =================
+
 const TICKET_CATEGORY = "1531926623580979230";
 
+const RATING_CHANNEL = "1531943465091596402";
 
-// تقديم إدارة (العليا)
+const CLAIM_LOG_CHANNEL = "1531943869682548826";
+
+
+// تقديم إدارة
 const HIGH_ADMIN = [
   "1528157604482912307",
   "1528157603564355716"
 ];
 
 
-// الدعم (الصغرى فقط)
+// دعم
 const SUPPORT_ADMIN = [
   "1528157557192134726",
   "1528157558416609331"
@@ -43,15 +48,14 @@ const SUPPORT_ADMIN = [
 
 // تشغيل البوت
 client.once("ready",()=>{
-
  console.log(`✅ ${client.user.tag}`);
-
 });
 
 
 
 
-// إنشاء الأزرار
+// ================= لوحة التذاكر =================
+
 client.on("messageCreate", async message=>{
 
  if(message.author.bot) return;
@@ -66,6 +70,7 @@ client.on("messageCreate", async message=>{
   .setStyle(ButtonStyle.Success);
 
 
+
   const support = new ButtonBuilder()
   .setCustomId("support_ticket")
   .setLabel("🎧 دعم")
@@ -74,7 +79,10 @@ client.on("messageCreate", async message=>{
 
 
   const row = new ActionRowBuilder()
-  .addComponents(apply,support);
+  .addComponents(
+    apply,
+    support
+  );
 
 
 
@@ -95,203 +103,232 @@ client.on("messageCreate", async message=>{
 
 
 
+// ================= فتح التيكت =================
 
-
-
-// فتح التيكت
 client.on(Events.InteractionCreate, async interaction=>{
 
 
- if(!interaction.isButton()) return;
+if(!interaction.isButton()) return;
 
 
+let type;
+let roles;
 
- let type;
- let roles;
 
 
+if(interaction.customId==="apply_ticket"){
 
- if(interaction.customId==="apply_ticket"){
+ type="تقديم إدارة";
+ roles=HIGH_ADMIN;
 
-  type="تقديم";
-  roles=HIGH_ADMIN;
+}
 
- }
 
 
+if(interaction.customId==="support_ticket"){
 
- if(interaction.customId==="support_ticket"){
+ type="دعم";
+ roles=SUPPORT_ADMIN;
 
-  type="دعم";
-  roles=SUPPORT_ADMIN;
+}
 
- }
 
 
+if(!type) return;
 
- if(!type) return;
 
 
+// منع نفس النوع فقط
 
- // منع نفس النوع فقط
- const exists = interaction.guild.channels.cache.find(
- c =>
- c.name.includes(interaction.user.username) &&
- c.name.includes(type)
- );
+const exists = interaction.guild.channels.cache.find(
+c =>
+c.name.includes(interaction.user.username)
+&&
+c.name.includes(type)
+);
 
 
- if(exists){
 
- return interaction.reply({
+if(exists){
 
- content:`❌ لديك تيكت ${type} مفتوح بالفعل`,
+return interaction.reply({
 
- ephemeral:true
+content:`❌ لديك تيكت ${type} مفتوح`,
 
- });
+ephemeral:true
 
- }
+});
 
+}
 
 
 
 
- const ticket =
- await interaction.guild.channels.create({
 
+const ticket =
+await interaction.guild.channels.create({
 
- name:`🎫-${type}-${interaction.user.username}`,
+name:`🎫-${type}-${interaction.user.username}`,
 
- type:ChannelType.GuildText,
+type:ChannelType.GuildText,
 
- parent:TICKET_CATEGORY,
+parent:TICKET_CATEGORY,
 
 
- permissionOverwrites:[
+permissionOverwrites:[
 
 
- {
+{
+id:interaction.guild.id,
 
- id:interaction.guild.id,
+deny:[
+PermissionsBitField.Flags.ViewChannel
+]
 
- deny:[
- PermissionsBitField.Flags.ViewChannel
- ]
+},
 
- },
 
+{
+id:interaction.user.id,
 
- {
+allow:[
+PermissionsBitField.Flags.ViewChannel,
+PermissionsBitField.Flags.SendMessages
+]
 
- id:interaction.user.id,
+},
 
- allow:[
- PermissionsBitField.Flags.ViewChannel,
- PermissionsBitField.Flags.SendMessages
- ]
 
- },
+...roles.map(r=>({
 
+id:r,
 
- ...roles.map(r=>({
+allow:[
+PermissionsBitField.Flags.ViewChannel,
+PermissionsBitField.Flags.SendMessages
+]
 
- id:r,
+}))
 
- allow:[
- PermissionsBitField.Flags.ViewChannel,
- PermissionsBitField.Flags.SendMessages
- ]
 
- }))
+]
 
+});
 
- ]
 
 
 
- });
+// زر إغلاق
 
+const close =
+new ButtonBuilder()
 
+.setCustomId("close_ticket")
 
+.setLabel("🔒 إغلاق")
 
+.setStyle(ButtonStyle.Danger);
 
- const close = new ButtonBuilder()
 
- .setCustomId("close_ticket")
 
- .setLabel("🔒 إغلاق")
+const row =
+new ActionRowBuilder()
+.addComponents(close);
 
- .setStyle(ButtonStyle.Danger);
 
 
+const mention =
+roles.map(r=>`<@&${r}>`).join(" ");
 
- const row = new ActionRowBuilder()
- .addComponents(close);
 
 
 
+const embed =
+new EmbedBuilder()
 
+.setTitle("🎫 تذكرة جديدة")
 
- const mention = roles.map(r=>`<@&${r}>`).join(" ");
+.setDescription(
 
-
-
-
- const embed = new EmbedBuilder()
-
- .setTitle("🎫 تذكرة جديدة")
-
- .setDescription(
-
- `مرحبا بك ${interaction.user} 👋
-
+`مرحبا بك ${interaction.user} 👋
 
 برجاء انتظار الإدارة للرد عليك في أسرع وقت ممكن.
-
 
 **نوع التذكرة:**
 ${type}
 
-
 **الإدارة المسؤولة:**
 ${mention}`
 
- )
+)
 
- .setFooter({
+.setFooter({
+text:"KRX Support"
+})
 
- text:"KRX Support"
-
- })
-
- .setTimestamp();
+.setTimestamp();
 
 
 
+await ticket.send({
 
+content:`${interaction.user}`,
 
- ticket.send({
+embeds:[embed],
 
- content:`${interaction.user}`,
+components:[row]
 
- embeds:[embed],
-
- components:[row]
-
- });
-
+});
 
 
 
- interaction.reply({
+interaction.reply({
 
- content:`✅ تم فتح التيكت ${ticket}`,
+content:`✅ تم فتح التذكرة ${ticket}`,
 
- ephemeral:true
+ephemeral:true
 
- });
+});
 
+
+});
+// ================= استلام التذكرة =================
+
+client.on("messageCreate", async message => {
+
+ if(message.author.bot) return;
+
+
+ if(message.content === "دعم") {
+
+
+  if(!message.channel.name.startsWith("🎫")) return;
+
+
+
+  await message.channel.send(
+    `✅ تم استلام التذكرة بواسطة ${message.author}`
+  );
+
+
+
+  const log =
+  message.guild.channels.cache.get(CLAIM_LOG_CHANNEL);
+
+
+
+  if(log){
+
+    log.send(
+      `📌 **تم استلام تذكرة**\n\n`+
+      `👤 الإداري: ${message.author}\n`+
+      `🎫 التذكرة: ${message.channel}`
+    );
+
+  }
+
+
+ }
 
 });
 
@@ -301,10 +338,9 @@ ${mention}`
 
 
 
+// ================= إنهاء التذكرة =================
 
-
-// أمر إنهاء التيكت
-client.on("messageCreate", async message=>{
+client.on("messageCreate", async message => {
 
 
  if(message.author.bot) return;
@@ -317,31 +353,32 @@ client.on("messageCreate", async message=>{
 
 
 
-  const member =
-  message.channel.permissionOverwrites.cache.find(
-  p=>p.allow.has(PermissionsBitField.Flags.ViewChannel)
-  );
-
-
-  const closeEmbed = new EmbedBuilder()
+  const embed =
+  new EmbedBuilder()
 
   .setTitle("✅ تم إنهاء التذكرة")
 
   .setDescription(
   `شكراً لاستخدامك الدعم 💙
 
-برجاء تقييمنا من خلال النجوم بالأسفل ⭐`
+برجاء تقييم الخدمة من خلال النجوم بالأسفل ⭐`
   )
+
+  .setFooter({
+   text:"KRX Support"
+  })
 
   .setTimestamp();
 
 
 
-  const stars = new ActionRowBuilder();
+  const stars =
+  new ActionRowBuilder();
 
 
 
-  for(let i=1;i<=5;i++){
+  for(let i = 1; i <= 5; i++){
+
 
    stars.addComponents(
 
@@ -355,15 +392,16 @@ client.on("messageCreate", async message=>{
 
    );
 
+
   }
+
+
 
 
 
   await message.channel.send({
 
-   content:`${message.author}`,
-
-   embeds:[closeEmbed],
+   embeds:[embed],
 
    components:[stars]
 
@@ -371,15 +409,8 @@ client.on("messageCreate", async message=>{
 
 
 
-  setTimeout(()=>{
-
-   message.channel.delete();
-
-  },10000);
-
-
-
  }
+
 
 });
 
@@ -389,38 +420,58 @@ client.on("messageCreate", async message=>{
 
 
 
-// تقييم النجوم
+// ================= التقييم =================
+
 client.on(Events.InteractionCreate, async interaction=>{
 
 
  if(!interaction.isButton()) return;
 
 
+
  if(interaction.customId.startsWith("rate_")){
 
 
- const rate =
- interaction.customId.split("_")[1];
+  const rate =
+  interaction.customId.split("_")[1];
 
 
- interaction.reply({
 
- content:`شكراً لتقييمك ⭐ ${rate}/5`,
+  const rating =
+  interaction.guild.channels.cache.get(RATING_CHANNEL);
 
- ephemeral:true
 
- });
+
+  if(rating){
+
+
+   rating.send(
+
+   `⭐ **تقييم جديد**\n\n`+
+
+   `👤 العضو: ${interaction.user}\n`+
+
+   `⭐ التقييم: ${"⭐".repeat(rate)}`
+
+   );
+
+
+  }
+
+
+
+  interaction.reply({
+
+   content:`شكراً لتقييمك ⭐ ${rate}/5`,
+
+   ephemeral:true
+
+  });
 
 
  }
 
 });
-
-
-
-
-
-
-
+// ================= تشغيل البوت =================
 
 client.login(process.env.TOKEN);
