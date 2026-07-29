@@ -1,7 +1,6 @@
 {
   "name": "krx-ticket",
   "version": "1.0.0",
-  "description": "KRX Discord Ticket Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
