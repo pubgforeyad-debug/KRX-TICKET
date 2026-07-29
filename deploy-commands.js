@@ -1,30 +1,68 @@
-require("dotenv").config();
+const {
+EmbedBuilder,
+ActionRowBuilder,
+ButtonBuilder,
+ButtonStyle
+} = require("discord.js");
 
-const { REST, Routes, SlashCommandBuilder } = require("discord.js");
+module.exports = {
 
-const commands = [
-    new SlashCommandBuilder()
-        .setName("setup")
-        .setDescription("Send the KRX Ticket Panel")
-        .toJSON()
-];
+async execute(message){
 
-const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+const embed = new EmbedBuilder()
 
-(async () => {
-    try {
-        console.log("🔄 Registering slash commands...");
+.setColor("#5865F2")
 
-        await rest.put(
-            Routes.applicationGuildCommands(
-                "1531918719402377226",
-                "1521797422941212742"
-            ),
-            { body: commands }
-        );
+.setTitle("🎫 KRX Ticket System")
 
-        console.log("✅ Slash commands registered successfully.");
-    } catch (error) {
-        console.error(error);
-    }
-})();
+.setDescription(`
+**🇺🇸 Welcome!**
+
+Choose your ticket type.
+
+**🇸🇦 مرحبًا بك**
+
+اختر نوع التذكرة.
+`);
+
+const row = new ActionRowBuilder()
+
+.addComponents(
+
+new ButtonBuilder()
+
+.setCustomId("support")
+
+.setLabel("🛠️ Support | الدعم")
+
+.setStyle(ButtonStyle.Primary),
+
+new ButtonBuilder()
+
+.setCustomId("application")
+
+.setLabel("📋 Application | التقديم")
+
+.setStyle(ButtonStyle.Success),
+
+new ButtonBuilder()
+
+.setCustomId("medi")
+
+.setLabel("🤝 Mediator | وسيط")
+
+.setStyle(ButtonStyle.Secondary)
+
+);
+
+await message.channel.send({
+
+embeds:[embed],
+
+components:[row]
+
+});
+
+}
+
+};
