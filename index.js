@@ -9,16 +9,23 @@ const {
   Events
 } = require("discord.js");
 
+require("dotenv").config();
+
 
 const client = new Client({
+
   intents: [
+
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+
   ]
+
 });
 
 
-// الكاتيجوري
+// كاتيجوري التذاكر
 const TICKET_CATEGORY = "1531926623580979230";
 
 
@@ -29,7 +36,7 @@ const HIGH_ADMIN = [
 ];
 
 
-// الدعم (الصغرى + الوسطاء)
+// الإدارة الصغرى + الوسطاء (الدعم)
 const SUPPORT_ADMIN = [
   "1528157557192134726",
   "1528157558416609331",
@@ -39,78 +46,138 @@ const SUPPORT_ADMIN = [
 
 
 
-// أمر إنشاء الأزرار
-client.on("messageCreate", async message => {
 
-  if(message.content === "!setup") {
+// عند تشغيل البوت
+client.once("ready", () => {
 
-    const apply = new ButtonBuilder()
-      .setCustomId("apply")
-      .setLabel("📝 تقديم إدارة")
-      .setStyle(ButtonStyle.Success);
-
-
-    const support = new ButtonBuilder()
-      .setCustomId("support")
-      .setLabel("🎧 دعم")
-      .setStyle(ButtonStyle.Primary);
-
-
-    const row = new ActionRowBuilder()
-      .addComponents(apply, support);
-
-
-    message.channel.send({
-      content: "🎫 اختر نوع التذكرة:",
-      components:[row]
-    });
-
-  }
+  console.log(`✅ البوت شغال: ${client.user.tag}`);
 
 });
 
 
 
-// فتح التذكرة
+
+
+// أمر إنشاء الأزرار
+client.on("messageCreate", async message => {
+
+
+  if(message.author.bot) return;
+
+
+  if(message.content === "!setup"){
+
+
+    const apply = new ButtonBuilder()
+
+      .setCustomId("apply_ticket")
+
+      .setLabel("📝 تقديم إدارة")
+
+      .setStyle(ButtonStyle.Success);
+
+
+
+    const support = new ButtonBuilder()
+
+      .setCustomId("support_ticket")
+
+      .setLabel("🎧 دعم")
+
+      .setStyle(ButtonStyle.Primary);
+
+
+
+    const row = new ActionRowBuilder()
+
+      .addComponents(apply, support);
+
+
+
+    await message.channel.send({
+
+      content:"🎫 اختر نوع التذكرة:",
+
+      components:[row]
+
+    });
+
+
+  }
+
+
+});
+
+
+
+
+
+
+
+// التعامل مع الأزرار
 client.on(Events.InteractionCreate, async interaction => {
 
+
  if(!interaction.isButton()) return;
+
 
 
  let type;
  let roles;
 
 
- if(interaction.customId === "apply"){
-   type = "تقديم";
-   roles = HIGH_ADMIN;
+
+ if(interaction.customId === "apply_ticket"){
+
+  type = "تقديم";
+
+  roles = HIGH_ADMIN;
+
  }
 
 
- if(interaction.customId === "support"){
-   type = "دعم";
-   roles = SUPPORT_ADMIN;
+
+ if(interaction.customId === "support_ticket"){
+
+  type = "دعم";
+
+  roles = SUPPORT_ADMIN;
+
  }
+
 
 
  if(!type) return;
 
 
 
- const old = interaction.guild.channels.cache.find(
+
+
+ // منع فتح أكثر من تيكت
+ const exists = interaction.guild.channels.cache.find(
+
   c => c.name.includes(interaction.user.username)
+
  );
 
 
- if(old){
-   return interaction.reply({
-    content:"❌ لديك تذكرة مفتوحة بالفعل",
-    ephemeral:true
-   });
+ if(exists){
+
+  return interaction.reply({
+
+   content:"❌ لديك تذكرة مفتوحة بالفعل",
+
+   ephemeral:true
+
+  });
+
  }
 
 
 
+
+
+ // إنشاء الروم
  const ticket = await interaction.guild.channels.create({
 
   name:`🎫-${type}-${interaction.user.username}`,
@@ -122,47 +189,68 @@ client.on(Events.InteractionCreate, async interaction => {
 
   permissionOverwrites:[
 
+
    {
+
     id:interaction.guild.id,
 
     deny:[
+
      PermissionsBitField.Flags.ViewChannel
+
     ]
 
    },
+
 
 
    {
+
     id:interaction.user.id,
 
     allow:[
+
      PermissionsBitField.Flags.ViewChannel,
+
      PermissionsBitField.Flags.SendMessages
+
     ]
 
    },
 
 
-   ...roles.map(role=>({
+
+   ...roles.map(role => ({
+
 
     id:role,
 
     allow:[
+
      PermissionsBitField.Flags.ViewChannel,
+
      PermissionsBitField.Flags.SendMessages
+
     ]
+
 
    }))
 
+
   ]
+
 
  });
 
 
 
+
+
+
+
  const close = new ButtonBuilder()
 
- .setCustomId("close")
+ .setCustomId("close_ticket")
 
  .setLabel("🔒 إغلاق التذكرة")
 
@@ -171,17 +259,21 @@ client.on(Events.InteractionCreate, async interaction => {
 
 
  const row = new ActionRowBuilder()
+
  .addComponents(close);
 
 
 
- const mention = roles.map(r=>`<@&${r}>`).join(" ");
+
+ const mention = roles.map(r => `<@&${r}>`).join(" ");
 
 
 
- ticket.send({
+
+ await ticket.send({
 
   content:
+
   `${interaction.user} 👋\n${mention}\n\nاكتب طلبك هنا.`,
 
   components:[row]
@@ -190,40 +282,64 @@ client.on(Events.InteractionCreate, async interaction => {
 
 
 
- interaction.reply({
 
-  content:`✅ تم فتح التذكرة ${ticket}`,
+
+ await interaction.reply({
+
+  content:`✅ تم فتح تذكرتك: ${ticket}`,
 
   ephemeral:true
 
  });
 
 
+
 });
 
 
 
 
-// إغلاق التذكرة
+
+
+
+// زر إغلاق التذكرة
 client.on(Events.InteractionCreate, async interaction => {
 
+
  if(
+
   interaction.isButton() &&
-  interaction.customId === "close"
+
+  interaction.customId === "close_ticket"
+
  ){
 
-  await interaction.reply(
-   "🔒 سيتم حذف التذكرة بعد 5 ثواني"
-  );
+
+  await interaction.reply({
+
+   content:"🔒 سيتم إغلاق التذكرة بعد 5 ثواني"
+
+  });
+
 
 
   setTimeout(()=>{
-    interaction.channel.delete();
+
+
+   interaction.channel.delete();
+
+
   },5000);
+
+
 
  }
 
+
 });
+
+
+
 
 
 
