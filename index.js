@@ -31,14 +31,14 @@ const RATING_CHANNEL = "1531943465091596402";
 const CLAIM_LOG_CHANNEL = "1531943869682548826";
 
 
-// الإدارة العليا (التقديم)
+// إدارة التقديم (العليا)
 const HIGH_ADMIN = [
   "1528157604482912307",
   "1528157603564355716"
 ];
 
 
-// الإدارة الصغرى (الدعم)
+// إدارة الدعم (الصغرى)
 const SUPPORT_ADMIN = [
   "1528157557192134726",
   "1528157558416609331"
@@ -47,7 +47,7 @@ const SUPPORT_ADMIN = [
 
 
 // تشغيل البوت
-client.once("ready",()=>{
+client.once("ready", () => {
 
  console.log(`✅ Online: ${client.user.tag}`);
 
@@ -56,53 +56,38 @@ client.once("ready",()=>{
 
 
 
-// ================= لوحة التذاكر =================
 
-client.on("messageCreate", async message=>{
+// ================= البانلات =================
+
+client.on("messageCreate", async message => {
 
 
  if(message.author.bot) return;
 
 
 
- if(message.content === "!setup"){
+ // بانل التقديم
 
+ if(message.content === "!setup1"){
 
 
  const embed = new EmbedBuilder()
 
- .setTitle("🎫 نظام التذاكر | KRX")
+ .setTitle("📝 تقديم الإدارة | KRX")
 
  .setDescription(
-
- `مرحباً بك في نظام الدعم 👋
-
-
-اختر القسم المناسب من الأزرار بالأسفل.
-
-
-📝 **تقديم إدارة**
-للتقديم على الإدارة.
-
-
-🎧 **دعم**
-للمشاكل والاستفسارات.`
-
+ "اضغط على الزر بالأسفل لفتح تذكرة تقديم للإدارة.\n\nسيتم الرد عليك من الإدارة العليا."
  )
 
  .setFooter({
-
- text:"KRX Support"
-
+ text:"KRX"
  })
 
  .setTimestamp();
 
 
 
-
-
- const apply = new ButtonBuilder()
+ const button = new ButtonBuilder()
 
  .setCustomId("apply_ticket")
 
@@ -112,9 +97,49 @@ client.on("messageCreate", async message=>{
 
 
 
+ const row = new ActionRowBuilder()
+
+ .addComponents(button);
 
 
- const support = new ButtonBuilder()
+
+ message.channel.send({
+
+ embeds:[embed],
+
+ components:[row]
+
+ });
+
+
+ }
+
+
+
+
+
+ // بانل الدعم
+
+ if(message.content === "!setup2"){
+
+
+ const embed = new EmbedBuilder()
+
+ .setTitle("🎧 الدعم | KRX")
+
+ .setDescription(
+ "اضغط على الزر بالأسفل لفتح تذكرة دعم.\n\nسيتم الرد عليك من فريق الدعم."
+ )
+
+ .setFooter({
+ text:"KRX"
+ })
+
+ .setTimestamp();
+
+
+
+ const button = new ButtonBuilder()
 
  .setCustomId("support_ticket")
 
@@ -124,48 +149,27 @@ client.on("messageCreate", async message=>{
 
 
 
-
-
  const row = new ActionRowBuilder()
 
- .addComponents(
-
-  apply,
-
-  support
-
- );
+ .addComponents(button);
 
 
 
+ message.channel.send({
 
+ embeds:[embed],
 
- await message.channel.send({
-
-  embeds:[embed],
-
-  components:[row]
+ components:[row]
 
  });
-
 
 
  }
 
 
+});// ================= فتح التذاكر =================
 
-});
-
-
-
-
-
-
-
-// ================= فتح التيكت =================
-
-
-client.on(Events.InteractionCreate, async interaction=>{
+client.on(Events.InteractionCreate, async interaction => {
 
 
  if(!interaction.isButton()) return;
@@ -179,9 +183,9 @@ client.on(Events.InteractionCreate, async interaction=>{
 
  if(interaction.customId === "apply_ticket"){
 
-  type="تقديم إدارة";
+  type = "تقديم";
 
-  roles=HIGH_ADMIN;
+  roles = HIGH_ADMIN;
 
  }
 
@@ -189,9 +193,9 @@ client.on(Events.InteractionCreate, async interaction=>{
 
  if(interaction.customId === "support_ticket"){
 
-  type="دعم";
+  type = "دعم";
 
-  roles=SUPPORT_ADMIN;
+  roles = SUPPORT_ADMIN;
 
  }
 
@@ -202,6 +206,8 @@ client.on(Events.InteractionCreate, async interaction=>{
 
 
 
+
+ // منع نفس النوع فقط
 
  const exists = interaction.guild.channels.cache.find(
 
@@ -214,8 +220,6 @@ client.on(Events.InteractionCreate, async interaction=>{
  c.name.includes(type)
 
  );
-
-
 
 
 
@@ -235,85 +239,86 @@ client.on(Events.InteractionCreate, async interaction=>{
 
 
 
+ // إنشاء الروم
+
  const ticket = await interaction.guild.channels.create({
 
+  name:`🎫-${type}-${interaction.user.username}`,
 
- name:`🎫-${type}-${interaction.user.username}`,
+  type:ChannelType.GuildText,
 
-
- type:ChannelType.GuildText,
-
-
- parent:TICKET_CATEGORY,
+  parent:TICKET_CATEGORY,
 
 
 
- permissionOverwrites:[
+  permissionOverwrites:[
+
+
+   {
+
+    id:interaction.guild.id,
+
+    deny:[
+
+     PermissionsBitField.Flags.ViewChannel
+
+    ]
+
+   },
 
 
 
- {
+   {
 
-  id:interaction.guild.id,
+    id:interaction.user.id,
 
-  deny:[
+    allow:[
 
-   PermissionsBitField.Flags.ViewChannel
+     PermissionsBitField.Flags.ViewChannel,
+
+     PermissionsBitField.Flags.SendMessages
+
+    ]
+
+   },
+
+
+
+   ...roles.map(role => ({
+
+
+    id:role,
+
+    allow:[
+
+     PermissionsBitField.Flags.ViewChannel,
+
+     PermissionsBitField.Flags.SendMessages
+
+    ]
+
+
+   }))
+
 
   ]
-
- },
-
-
-
- {
-
-  id:interaction.user.id,
-
-  allow:[
-
-   PermissionsBitField.Flags.ViewChannel,
-
-   PermissionsBitField.Flags.SendMessages
-
-  ]
-
- },
-
-
-
- ...roles.map(role=>({
-
-
- id:role,
-
-
- allow:[
-
-  PermissionsBitField.Flags.ViewChannel,
-
-  PermissionsBitField.Flags.SendMessages
-
- ]
-
-
- }))
-
-
- ]
 
 
  });
 
 
+
+
+
+ // زر الإغلاق
+
  const close = new ButtonBuilder()
 
  .setCustomId("close_ticket")
 
- .setLabel("🔒 إغلاق")
+ .setLabel("🔒 إغلاق التذكرة")
 
  .setStyle(ButtonStyle.Danger);
-
 
 
 
@@ -331,13 +336,13 @@ client.on(Events.InteractionCreate, async interaction=>{
 
 
 
- const ticketEmbed = new EmbedBuilder()
+ const embed = new EmbedBuilder()
 
  .setTitle("🎫 تذكرة جديدة")
 
  .setDescription(
 
- `مرحبا بك ${interaction.user} 👋
+ `مرحباً ${interaction.user} 👋
 
 
 برجاء انتظار الإدارة للرد عليك في أسرع وقت ممكن.
@@ -366,26 +371,23 @@ ${mention}`
 
  await ticket.send({
 
- content:`${interaction.user}`,
+  content:`${interaction.user}`,
 
- embeds:[ticketEmbed],
+  embeds:[embed],
 
- components:[row]
+  components:[row]
 
  });
-
-
 
 
 
  await interaction.reply({
 
- content:`✅ تم فتح التذكرة ${ticket}`,
+  content:`✅ تم فتح التذكرة: ${ticket}`,
 
- ephemeral:true
+  ephemeral:true
 
  });
-
 
 
 });
@@ -396,7 +398,7 @@ client.on("messageCreate", async message => {
  if(message.author.bot) return;
 
 
- if(message.content === "دعم") {
+ if(message.content === "دعم"){
 
 
   if(!message.channel.name.startsWith("🎫")) return;
@@ -416,11 +418,11 @@ client.on("messageCreate", async message => {
 
   if(logChannel){
 
-    logChannel.send(
-      `📌 **تم استلام تذكرة**\n\n`+
-      `👤 الإداري: ${message.author}\n`+
-      `🎫 التذكرة: ${message.channel}`
-    );
+   logChannel.send(
+    `📌 **تم استلام تذكرة**\n\n`+
+    `👤 الإداري: ${message.author}\n`+
+    `🎫 التذكرة: ${message.channel}`
+   );
 
   }
 
@@ -428,7 +430,8 @@ client.on("messageCreate", async message => {
  }
 
 });
-// ================= إنهاء التذكرة بالتقييم =================
+
+// ================= إنهاء التذكرة =================
 
 client.on("messageCreate", async message => {
 
@@ -453,7 +456,7 @@ client.on("messageCreate", async message => {
   `شكراً لاستخدامك خدمة الدعم 💙
 
 
-برجاء تقييم الخدمة من خلال النجوم بالأسفل ⭐`
+برجاء تقييمنا من خلال النجوم بالأسفل ⭐`
 
   )
 
@@ -487,12 +490,11 @@ client.on("messageCreate", async message => {
 
    );
 
-
   }
 
 
 
-  await message.channel.send({
+  message.channel.send({
 
    embeds:[embed],
 
@@ -505,13 +507,19 @@ client.on("messageCreate", async message => {
 
 });
 
-// ================= إرسال التقييم =================
+
+
+
+
+
+
+
+// ================= التقييم =================
 
 client.on(Events.InteractionCreate, async interaction => {
 
 
  if(!interaction.isButton()) return;
-
 
 
  if(interaction.customId.startsWith("rate_")){
@@ -533,9 +541,7 @@ client.on(Events.InteractionCreate, async interaction => {
    ratingChannel.send(
 
     `⭐ **تقييم جديد**\n\n`+
-
     `👤 العضو: ${interaction.user}\n`+
-
     `⭐ التقييم: ${"⭐".repeat(rate)}`
 
    );
@@ -557,9 +563,17 @@ client.on(Events.InteractionCreate, async interaction => {
  }
 
 });
+
+
+
+
+
+
+
 // ================= حذف التذكرة =================
 
 client.on("messageCreate", async message => {
+
 
  if(message.author.bot) return;
 
@@ -570,17 +584,19 @@ client.on("messageCreate", async message => {
   if(!message.channel.name.startsWith("🎫")) return;
 
 
-  await message.reply("🗑️ سيتم حذف التذكرة بعد 5 ثواني");
+
+  message.reply("🗑️ سيتم حذف التذكرة بعد 5 ثواني");
 
 
   setTimeout(()=>{
 
-    message.channel.delete();
+   message.channel.delete();
 
   },5000);
 
 
  }
+
 
 });
 
@@ -589,7 +605,8 @@ client.on("messageCreate", async message => {
 
 
 
-// ================= زر إغلاق التذكرة =================
+
+// ================= زر الإغلاق =================
 
 client.on(Events.InteractionCreate, async interaction => {
 
@@ -597,27 +614,33 @@ client.on(Events.InteractionCreate, async interaction => {
  if(!interaction.isButton()) return;
 
 
+
  if(interaction.customId === "close_ticket"){
 
 
-  await interaction.reply({
-
-   content:"🔒 سيتم حذف التذكرة بعد 5 ثواني"
-
-  });
+  await interaction.reply(
+   "🔒 سيتم حذف التذكرة بعد 5 ثواني"
+  );
 
 
 
   setTimeout(()=>{
 
-    interaction.channel.delete();
+   interaction.channel.delete();
 
   },5000);
 
 
  }
 
+
 });
+
+
+
+
+
+
 // ================= تشغيل البوت =================
 
 client.login(process.env.TOKEN);
