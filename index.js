@@ -476,7 +476,47 @@ await message.channel.delete();
 },5000);
 
 });
+// ========= تغيير اسم التذكرة (للإدارة فقط) =========
 
+client.on("messageCreate", async (message) => {
+
+    if (message.author.bot) return;
+
+    if (!message.channel.name.startsWith("🎫")) return;
+
+    if (!message.content.startsWith("!rename")) return;
+
+    const isAdmin =
+        SUPPORT_ADMIN.some(role => message.member.roles.cache.has(role)) ||
+        APPLY_ADMIN.some(role => message.member.roles.cache.has(role));
+
+    if (!isAdmin) {
+        return message.reply("❌ ليس لديك صلاحية لاستخدام هذا الأمر.");
+    }
+
+    const newName = message.content.slice(8).trim();
+
+    if (!newName) {
+        return message.reply(
+            "❌ اكتب الاسم الجديد.\n\nمثال:\n`!rename مشكلة-الدفع`"
+        );
+    }
+
+    try {
+
+        await message.channel.setName(`🎫-${newName}`);
+
+        message.reply(`✅ تم تغيير اسم التذكرة إلى **🎫-${newName}**`);
+
+    } catch (err) {
+
+        console.error(err);
+
+        message.reply("❌ حدث خطأ أثناء تغيير اسم التذكرة.");
+
+    }
+
+});
 
 // ======================
 // تشغيل البوت
