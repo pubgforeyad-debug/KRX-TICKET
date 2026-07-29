@@ -1,664 +1,485 @@
 const {
-  Client,
-  GatewayIntentBits,
-  ChannelType,
-  PermissionsBitField,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  Events
+Client,
+GatewayIntentBits,
+ChannelType,
+PermissionsBitField,
+ActionRowBuilder,
+ButtonBuilder,
+ButtonStyle,
+EmbedBuilder,
+Events
 } = require("discord.js");
 
 require("dotenv").config();
 
 const client = new Client({
-  intents:[
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+intents:[
+GatewayIntentBits.Guilds,
+GatewayIntentBits.GuildMessages,
+GatewayIntentBits.MessageContent,
+GatewayIntentBits.GuildMembers,
+GatewayIntentBits.DirectMessages
+]
 });
 
+const TICKET_CATEGORY="1531926623580979230";
+const RATING_CHANNEL="1531943465091596402";
+const CLAIM_LOG_CHANNEL="1531943869682548826";
 
-// ========= الإعدادات =========
-
-const TICKET_CATEGORY = "1531926623580979230";
-
-const RATING_CHANNEL = "1531943465091596402";
-
-const CLAIM_LOG_CHANNEL = "1531943869682548826";
-
-
-const APPLY_ADMIN = [
- "1528157507665658018",
- "1528157508869558463"
+const APPLY_ADMIN=[
+"1528157507665658018",
+"1528157508869558463"
 ];
 
-
-const SUPPORT_ADMIN = [
- "1528157557192134726",
- "1528157558416609331"
+const SUPPORT_ADMIN=[
+"1528157557192134726",
+"1528157558416609331"
 ];
 
-
-const claimedTickets = new Map();
-
-
+const claimedTickets=new Map();
 
 client.once("ready",()=>{
- console.log(`✅ Online: ${client.user.tag}`);
+console.log(`${client.user.tag} Online`);
 });
 
+client.on("messageCreate",async message=>{
 
+if(message.author.bot)return;
 
-// ========= البانلات =========
+if(message.content==="!setup1"){
 
-client.on("messageCreate", async message=>{
+const embed=new EmbedBuilder()
+.setColor("Blue")
+.setTitle("📝 تقديم إدارة | KRX")
+.setDescription("اضغط الزر لفتح تذكرة تقديم الإدارة.")
+.setTimestamp();
 
- if(message.author.bot) return;
+const row=new ActionRowBuilder().addComponents(
+new ButtonBuilder()
+.setCustomId("apply_ticket")
+.setLabel("📝 تقديم إدارة")
+.setStyle(ButtonStyle.Success)
+);
 
+return message.channel.send({
+embeds:[embed],
+components:[row]
+});
+}
 
- if(message.content === "!setup1"){
+if(message.content==="!setup2"){
 
+const embed=new EmbedBuilder()
+.setColor("Blurple")
+.setTitle("🎧 الدعم الفني | KRX")
+.setDescription("اضغط الزر لفتح تذكرة الدعم.")
+.setTimestamp();
 
-  const embed = new EmbedBuilder()
-  .setTitle("📝 تقديم الإدارة | KRX")
-  .setDescription("اضغط الزر لفتح تذكرة تقديم إدارة.")
-  .setTimestamp();
+const row=new ActionRowBuilder().addComponents(
+new ButtonBuilder()
+.setCustomId("support_ticket")
+.setLabel("🎧 دعم")
+.setStyle(ButtonStyle.Primary)
+);
 
+return message.channel.send({
+embeds:[embed],
+components:[row]
+});
 
-  const button = new ButtonBuilder()
-  .setCustomId("apply_ticket")
-  .setLabel("📝 تقديم إدارة")
-  .setStyle(ButtonStyle.Success);
-
-
-  message.channel.send({
-   embeds:[embed],
-   components:[
-    new ActionRowBuilder().addComponents(button)
-   ]
-  });
-
- }
-
-
-
- if(message.content === "!setup2"){
-
-
-  const embed = new EmbedBuilder()
-  .setTitle("🎧 الدعم | KRX")
-  .setDescription("اضغط الزر لفتح تذكرة دعم.")
-  .setTimestamp();
-
-
-  const button = new ButtonBuilder()
-  .setCustomId("support_ticket")
-  .setLabel("🎧 دعم")
-  .setStyle(ButtonStyle.Primary);
-
-
-  message.channel.send({
-   embeds:[embed],
-   components:[
-    new ActionRowBuilder().addComponents(button)
-   ]
-  });
-
-
- }
+}
 
 });
 
+client.on(Events.InteractionCreate,async interaction=>{
 
+if(!interaction.isButton())return;
 
+let type;
+let roles;
 
-// ========= فتح التيكت =========
+if(interaction.customId==="apply_ticket"){
+type="تقديم";
+roles=APPLY_ADMIN;
+}
 
-client.on(Events.InteractionCreate, async interaction=>{
+if(interaction.customId==="support_ticket"){
+type="دعم";
+roles=SUPPORT_ADMIN;
+}
 
+if(!type)return;
 
- if(!interaction.isButton()) return;
+const old=interaction.guild.channels.cache.find(c=>
+c.parentId===TICKET_CATEGORY &&
+c.name.includes(interaction.user.id)
+);
 
-
- let type;
- let roles;
-
-
- if(interaction.customId==="apply_ticket"){
-  type="تقديم";
-  roles=APPLY_ADMIN;
- }
-
-
- if(interaction.customId==="support_ticket"){
-  type="دعم";
-  roles=SUPPORT_ADMIN;
- }
-
-
- if(!type) return;
-
-
-
- const ticket = await interaction.guild.channels.create({
-
-  name:`🎫-${type}-${interaction.user.username}`,
-
-  type:ChannelType.GuildText,
-
-  parent:TICKET_CATEGORY,
-
-
-  permissionOverwrites:[
-
-   {
-    id:interaction.guild.id,
-    deny:[
-     PermissionsBitField.Flags.ViewChannel
-    ]
-   },
-
-   {
-    id:interaction.user.id,
-    allow:[
-     PermissionsBitField.Flags.ViewChannel,
-     PermissionsBitField.Flags.SendMessages
-    ]
-   },
-
-
-   ...roles.map(r=>({
-
-    id:r,
-
-    allow:[
-     PermissionsBitField.Flags.ViewChannel,
-     PermissionsBitField.Flags.SendMessages
-    ]
-
-   }))
-
-  ]
-
- });
-
-
- interaction.reply({
-  content:`✅ تم فتح التذكرة ${ticket}`,
-  ephemeral:true
- });
-
-
+if(old){
+return interaction.reply({
+content:`❌ لديك تذكرة مفتوحة بالفعل: ${old}`,
+ephemeral:true
 });
-// ========= إرسال رسالة داخل التيكت =========
+}
 
-client.on(Events.InteractionCreate, async interaction=>{
+const channel=await interaction.guild.channels.create({
 
- if(!interaction.isButton()) return;
+name:`ticket-${interaction.user.id}`,
 
+type:ChannelType.GuildText,
 
- if(
-  interaction.customId !== "apply_ticket" &&
-  interaction.customId !== "support_ticket"
- ) return;
+parent:TICKET_CATEGORY,
 
+permissionOverwrites:[
 
+{
+id:interaction.guild.id,
+deny:[PermissionsBitField.Flags.ViewChannel]
+},
 
- const channel = interaction.guild.channels.cache.find(
-  c => c.name.includes(interaction.user.username)
- );
+{
+id:interaction.user.id,
+allow:[
+PermissionsBitField.Flags.ViewChannel,
+PermissionsBitField.Flags.SendMessages
+]
+},
 
- if(!channel) return;
-
-
-
- const roles =
- interaction.customId === "apply_ticket"
- ? APPLY_ADMIN
- : SUPPORT_ADMIN;
-
-
-
- const mention = roles
- .map(r=>`<@&${r}>`)
- .join(" ");
-
-
-
- const embed = new EmbedBuilder()
-
- .setTitle("🎫 تذكرة جديدة | KRX")
-
- .setDescription(
-`مرحباً ${interaction.user} 👋
-
-برجاء انتظار الإدارة للرد عليك في أسرع وقت.
-
-**الإدارة المسؤولة:**
-${mention}`
- )
-
- .setTimestamp();
-
-
-
- channel.send({
-
-  content:`${interaction.user} ${mention}`,
-
-  embeds:[embed]
-
- });
-
+...roles.map(r=>({
+id:r,
+allow:[
+PermissionsBitField.Flags.ViewChannel,
+PermissionsBitField.Flags.SendMessages
+]
+}))
+]
 
 });
 
+const buttons=new ActionRowBuilder().addComponents(
 
+new ButtonBuilder()
+.setCustomId("close_ticket")
+.setLabel("🔒 إغلاق")
+.setStyle(ButtonStyle.Danger),
 
+new ButtonBuilder()
+.setCustomId("add_member")
+.setLabel("➕ عضو")
+.setStyle(ButtonStyle.Success),
 
+new ButtonBuilder()
+.setCustomId("remove_member")
+.setLabel("➖ عضو")
+.setStyle(ButtonStyle.Secondary)
 
-// ========= استلام التيكت =========
+);
 
+const mention=roles.map(r=>`<@&${r}>`).join(" ");
 
-client.on("messageCreate", async message=>{
+await channel.send({
+content:`${interaction.user} ${mention}`,
+embeds:[
+new EmbedBuilder()
+.setColor("Blue")
+.setTitle("🎫 تذكرة جديدة")
+.setDescription(`مرحباً ${interaction.user}
 
+اكتب مشكلتك وانتظر الإدارة.
 
- if(message.author.bot) return;
+📌 للاستلام اكتب:
+\`دعم\``)
+],
+components:[buttons]
+});
 
+interaction.reply({
+content:`✅ تم فتح التذكرة ${channel}`,
+ephemeral:true
+});
 
+});
+// ======================
+// استلام التذكرة
+// ======================
 
- if(message.content === "دعم"){
+client.on("messageCreate", async (message) => {
 
+if(message.author.bot) return;
 
+if(message.content !== "دعم") return;
 
-  if(!message.channel.name.startsWith("🎫")) return;
+if(!message.channel.name.startsWith("ticket-")) return;
 
+const isAdmin =
+SUPPORT_ADMIN.some(r=>message.member.roles.cache.has(r)) ||
+APPLY_ADMIN.some(r=>message.member.roles.cache.has(r));
 
+if(!isAdmin){
+return message.reply("❌ ليس لديك صلاحية لاستلام التذكرة.");
+}
 
-  // إذا تم الاستلام من قبل
+if(claimedTickets.has(message.channel.id)){
 
-  if(claimedTickets.has(message.channel.id)){
+const adminId = claimedTickets.get(message.channel.id);
 
+return message.reply(
+`❌ هذه التذكرة مستلمة بالفعل بواسطة <@${adminId}>`
+);
 
-   return message.reply(
-    `❌ تم استلام هذه التذكرة مسبقاً بواسطة <@${claimedTickets.get(message.channel.id)}>`
-   );
+}
 
+claimedTickets.set(
+message.channel.id,
+message.author.id
+);
 
-  }
+const embed = new EmbedBuilder()
 
+.setColor("Green")
 
+.setTitle("✅ تم استلام التذكرة")
 
-  // تسجيل المستلم
+.setDescription(
+`👤 الإدارة: ${message.author}
 
-  claimedTickets.set(
-   message.channel.id,
-   message.author.id
-  );
+يرجى انتظار متابعة طلبك.`
+)
 
+.setTimestamp();
 
+await message.channel.send({
+embeds:[embed]
+});
 
-  message.channel.send(
-   `✅ تم استلام التذكرة بواسطة ${message.author}`
-  );
+try{
 
+await message.author.send(
+`🎉 تم استلام تذكرة **${message.channel.name}**
 
+شكراً لك على سرعة الاستجابة 💙`
+);
 
-  // رسالة خاصة
+}catch{}
 
-  try{
+const log =
+message.guild.channels.cache.get(CLAIM_LOG_CHANNEL);
 
-   await message.author.send(
+if(log){
 
-`🎉 تم استلام تذكرة KRX بنجاح!
+log.send({
 
-🎫 التذكرة:
-${message.channel.name}
+embeds:[
+new EmbedBuilder()
+.setColor("Blue")
+.setTitle("📋 سجل استلام")
+.addFields(
+{name:"الإداري",value:`${message.author}`,inline:true},
+{name:"التذكرة",value:`${message.channel}`,inline:true}
+)
+.setTimestamp()
+]
 
-➕ تمت إضافة +2 نقطة إلى حسابك ⭐
+});
 
-(النقاط غير محفوظة، مجرد رسالة تشجيعية)`
-
-   );
-
-  }catch{}
-
-
-
-  // اللوج
-
-  const log =
-  message.guild.channels.cache.get(CLAIM_LOG_CHANNEL);
-
-
-
-  if(log){
-
-   log.send(
-
-`📌 **استلام تذكرة**
-
-👤 الإداري:
-${message.author}
-
-🎫 التيكت:
-${message.channel}`
-
-   );
-
-  }
-
-
- }
-
+}
 
 });
 
 
+// ======================
+// إضافة عضو
+// ======================
 
-// ========= إضافة عضو =========
+client.on("messageCreate",async(message)=>{
 
+if(message.author.bot) return;
 
-client.on("messageCreate", async message=>{
+if(!message.content.startsWith("$add")) return;
 
+if(!message.channel.name.startsWith("ticket-")) return;
 
- if(message.author.bot) return;
+const member =
+message.mentions.members.first();
 
+if(!member)
+return message.reply("❌ قم بمنشن العضو.");
 
+await message.channel.permissionOverwrites.edit(
+member.id,
+{
+ViewChannel:true,
+SendMessages:true
+}
+);
 
- if(message.content.startsWith("$add")){
-
-
-  if(!message.channel.name.startsWith("🎫")) return;
-
-
-
-  const member =
-  message.mentions.members.first();
-
-
-
-  if(!member)
-  return message.reply("❌ منشن العضو");
-
-
-
-  await message.channel.permissionOverwrites.edit(
-
-   member.id,
-
-   {
-
-    ViewChannel:true,
-
-    SendMessages:true
-
-   }
-
-  );
-
-
-
-  message.reply(
-   `✅ تم إضافة ${member} إلى التذكرة`
-  );
-
-
- }
-
+message.reply(`✅ تمت إضافة ${member}`);
 
 });
 
 
+// ======================
+// إزالة عضو
+// ======================
 
+client.on("messageCreate",async(message)=>{
 
-// ========= إزالة عضو =========
+if(message.author.bot) return;
 
+if(!message.content.startsWith("$remove")) return;
 
-client.on("messageCreate", async message=>{
+if(!message.channel.name.startsWith("ticket-")) return;
 
+const member =
+message.mentions.members.first();
 
- if(message.author.bot) return;
+if(!member)
+return message.reply("❌ قم بمنشن العضو.");
 
+await message.channel.permissionOverwrites.delete(
+member.id
+);
 
-
- if(message.content.startsWith("$remove")){
-
-
-  if(!message.channel.name.startsWith("🎫")) return;
-
-
-
-  const member =
-  message.mentions.members.first();
-
-
-
-  if(!member)
-  return message.reply("❌ منشن العضو");
-
-
-
-  await message.channel.permissionOverwrites.delete(
-   member.id
-  );
-
-
-
-  message.reply(
-   `❌ تم إزالة ${member} من التذكرة`
-  );
-
-
- }
-
+message.reply(`✅ تمت إزالة ${member}`);
 
 });
-// ========= إنهاء التذكرة والتقييم =========
+// ======================
+// زر إغلاق التذكرة
+// ======================
 
-client.on("messageCreate", async message=>{
+client.on(Events.InteractionCreate, async (interaction) => {
 
+if(!interaction.isButton()) return;
 
- if(message.author.bot) return;
+if(interaction.customId !== "close_ticket") return;
 
+const row = new ActionRowBuilder().addComponents(
 
+new ButtonBuilder()
+.setCustomId("rate_1")
+.setLabel("⭐")
+.setStyle(ButtonStyle.Secondary),
 
- if(message.content === "$تم"){
+new ButtonBuilder()
+.setCustomId("rate_2")
+.setLabel("⭐⭐")
+.setStyle(ButtonStyle.Secondary),
 
+new ButtonBuilder()
+.setCustomId("rate_3")
+.setLabel("⭐⭐⭐")
+.setStyle(ButtonStyle.Secondary),
 
-  if(!message.channel.name.startsWith("🎫")) return;
+new ButtonBuilder()
+.setCustomId("rate_4")
+.setLabel("⭐⭐⭐⭐")
+.setStyle(ButtonStyle.Secondary),
 
+new ButtonBuilder()
+.setCustomId("rate_5")
+.setLabel("⭐⭐⭐⭐⭐")
+.setStyle(ButtonStyle.Success)
 
+);
 
-  const embed = new EmbedBuilder()
+await interaction.reply({
 
-  .setTitle("✅ تم إنهاء التذكرة")
+embeds:[
+new EmbedBuilder()
+.setColor("Blue")
+.setTitle("⭐ تقييم الخدمة")
+.setDescription("يرجى اختيار تقييمك قبل حذف التذكرة.")
+],
 
-  .setDescription(
-   "شكراً لاستخدامك KRX 💙\n\nيرجى تقييم الخدمة من النجوم ⭐"
-  )
+components:[row]
 
-  .setTimestamp();
-
-
-
-  const row = new ActionRowBuilder();
-
-
-
-  for(let i = 1; i <= 5; i++){
-
-
-   row.addComponents(
-
-    new ButtonBuilder()
-
-    .setCustomId(`rate_${i}`)
-
-    .setLabel("⭐".repeat(i))
-
-    .setStyle(ButtonStyle.Secondary)
-
-   );
-
-
-  }
-
-
-
-  message.channel.send({
-
-   embeds:[embed],
-
-   components:[row]
-
-  });
-
-
- }
-
+});
 
 });
 
 
-// ========= استقبال التقييم =========
+// ======================
+// استقبال التقييم
+// ======================
 
+client.on(Events.InteractionCreate, async (interaction)=>{
 
-client.on(Events.InteractionCreate, async interaction=>{
+if(!interaction.isButton()) return;
 
+if(!interaction.customId.startsWith("rate_")) return;
 
- if(!interaction.isButton()) return;
+const rate = interaction.customId.split("_")[1];
 
+const log =
+interaction.guild.channels.cache.get(RATING_CHANNEL);
 
+if(log){
 
- if(interaction.customId.startsWith("rate_")){
+await log.send({
 
+embeds:[
+new EmbedBuilder()
+.setColor("Yellow")
+.setTitle("⭐ تقييم جديد")
+.addFields(
+{name:"العضو",value:`${interaction.user}`,inline:true},
+{name:"التقييم",value:`${"⭐".repeat(Number(rate))}`,inline:true},
+{name:"التذكرة",value:`${interaction.channel}`,inline:false}
+)
+.setTimestamp()
+]
 
-  const rate =
-  interaction.customId.split("_")[1];
+});
 
+}
 
+await interaction.reply({
+content:`💙 شكراً لك، تم تسجيل تقييم ${rate}/5`,
+ephemeral:true
+});
 
-  const channel =
-  interaction.guild.channels.cache.get(RATING_CHANNEL);
+setTimeout(async()=>{
 
+try{
 
+await interaction.channel.delete();
 
-  if(channel){
+}catch{}
 
-
-   channel.send(
-
-`⭐ **تقييم جديد**
-
-👤 العضو:
-${interaction.user}
-
-⭐ التقييم:
-${"⭐".repeat(rate)}`
-
-   );
-
-
-  }
-
-
-
-  interaction.reply({
-
-   content:`شكراً لتقييمك ⭐ ${rate}/5`,
-
-   ephemeral:true
-
-  });
-
-
- }
-
+},5000);
 
 });
 
 
-// ========= حذف التذكرة =========
+// ======================
+// حذف يدوي
+// ======================
 
+client.on("messageCreate", async(message)=>{
 
-client.on("messageCreate", async message=>{
+if(message.author.bot) return;
 
+if(message.content !== "!delete") return;
 
- if(message.author.bot) return;
+if(!message.channel.name.startsWith("ticket-")) return;
 
+await message.reply("🗑️ سيتم حذف التذكرة بعد 5 ثوانٍ.");
 
+setTimeout(async()=>{
 
- if(message.content === "!delete"){
+try{
 
+await message.channel.delete();
 
-  if(!message.channel.name.startsWith("🎫")) return;
+}catch{}
 
-
-
-  message.reply(
-   "🗑️ سيتم حذف التذكرة بعد 5 ثواني"
-  );
-
-
-
-  setTimeout(()=>{
-
-
-   message.channel.delete();
-
-
-  },5000);
-
-
-
- }
-
+},5000);
 
 });
 
 
-
-
-// ========= زر إغلاق التذكرة =========
-
-
-client.on(Events.InteractionCreate, async interaction=>{
-
-
- if(!interaction.isButton()) return;
-
-
-
- if(interaction.customId === "close_ticket"){
-
-
-  interaction.reply(
-   "🔒 سيتم حذف التذكرة بعد 5 ثواني"
-  );
-
-
-
-  setTimeout(()=>{
-
-
-   interaction.channel.delete();
-
-
-  },5000);
-
-
-
- }
-
-
-});
-
-
-
-// ========= تشغيل البوت =========
+// ======================
+// تشغيل البوت
+// ======================
 
 client.login(process.env.TOKEN);
