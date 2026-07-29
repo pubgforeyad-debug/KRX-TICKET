@@ -285,6 +285,9 @@ client.on(Events.InteractionCreate, async interaction => {
  });
 
 
+
+
+
  // زر الإغلاق
 
  const closeButton = new ButtonBuilder()
@@ -302,11 +305,17 @@ client.on(Events.InteractionCreate, async interaction => {
  .addComponents(closeButton);
 
 
+
+
+
  // منشن الإدارة
 
  const mention = roles
  .map(r => `<@&${r}>`)
  .join(" ");
+
+
+
 
 
  const embed = new EmbedBuilder()
@@ -336,8 +345,37 @@ ${mention}`
 
  })
 
- .set
-  // ================= استلام التيكت =================
+ .setTimestamp();
+
+
+
+
+
+ await ticket.send({
+
+  content:`${interaction.user} ${mention}`,
+
+  embeds:[embed],
+
+  components:[row]
+
+ });
+
+
+
+
+
+ interaction.reply({
+
+  content:`✅ تم فتح التذكرة ${ticket}`,
+
+  ephemeral:true
+
+ });
+
+
+});
+// ================= استلام التيكت =================
 
 client.on("messageCreate", async message => {
 
@@ -505,6 +543,11 @@ client.on("messageCreate", async message => {
 
 });
 
+
+
+
+
+
 // ================= إزالة عضو =================
 
 client.on("messageCreate", async message => {
@@ -556,7 +599,7 @@ client.on("messageCreate", async message => {
 
 
 });
-  // ================= إنهاء التذكرة والتقييم =================
+// ================= إنهاء التذكرة والتقييم =================
 
 client.on("messageCreate", async message => {
 
@@ -776,6 +819,13 @@ client.on(Events.InteractionCreate, async interaction => {
 
 
 });
+
+
+
+
+
+
+
 
 // ================= تشغيل البوت =================
 
