@@ -13,10 +13,6 @@ Events
 require("dotenv").config();
 const fs = require("fs");
 
-// =========================
-// تشغيل البوت
-// =========================
-
 const client = new Client({
 
 intents:[
@@ -33,51 +29,22 @@ GatewayIntentBits.DirectMessages
 
 
 // =========================
-// Config System
+// CONFIG
 // =========================
 
-const CONFIG_FILE = "./config.json";
-
-let config = {
-
-supportCategory:"",
-staffCategory:"",
-supportRole:"",
-highRole:"",
-ratingChannel:"",
-claimLogChannel:""
-
-};
-
-
-if(fs.existsSync(CONFIG_FILE)){
-
-config = JSON.parse(
-fs.readFileSync(CONFIG_FILE,"utf8")
-);
-
-}
-
-
-function saveConfig(){
-
-fs.writeFileSync(
-CONFIG_FILE,
-JSON.stringify(config,null,2)
-);
-
-}
+const config = require("./config.json");
 
 
 // =========================
-// نظام النقاط
+// POINTS
 // =========================
 
 let points = {};
 
 if(fs.existsSync("./points.json")){
 
-points = JSON.parse(
+points =
+JSON.parse(
 fs.readFileSync("./points.json","utf8")
 );
 
@@ -95,160 +62,174 @@ JSON.stringify(points,null,2)
 
 
 // =========================
+// SHOP
+// =========================
 
-const claimedTickets = new Map();
+let shop=[];
+
+if(fs.existsSync("./shop.json")){
+
+shop =
+JSON.parse(
+fs.readFileSync("./shop.json","utf8")
+);
+
+}
+
+
+function saveShop(){
+
+fs.writeFileSync(
+"./shop.json",
+JSON.stringify(shop,null,2)
+);
+
+}
 
 
 // =========================
-// جاهزية البوت
+// READY
 // =========================
 
 client.once("ready",()=>{
 
-console.log(`✅ ${client.user.tag} Online`);
+console.log(
+`✅ ${client.user.tag} Online`
+);
 
 });
 
 
 // =========================
-// أوامر الإعداد
+// SETUP PANELS
 // =========================
 
-const waitingSetup = new Map();
+
+client.on("messageCreate",async message=>{
 
 
-client.on("messageCreate", async message=>{
+if(message.author.bot)return;
 
 
-if(message.author.bot) return;
+// ===== APPLY PANEL =====
 
 
-if(
-!message.member ||
-!message.member.permissions.has(
-PermissionsBitField.Flags.Administrator
+if(message.content==="!setup1"){
+
+
+const embed =
+new EmbedBuilder()
+
+.setColor("Blue")
+
+.setTitle("📝 تقديم الإدارة | KRX")
+
+.setDescription(
+"اضغط الزر لفتح تذكرة التقديم."
 )
-) return;
+
+.setTimestamp();
 
 
 
-if(message.content==="!supportlog"){
+const row =
+new ActionRowBuilder()
 
-waitingSetup.set(
-message.author.id,
-"supportCategory"
+.addComponents(
+
+new ButtonBuilder()
+
+.setCustomId("apply_ticket")
+
+.setLabel("📝 تقديم")
+
+.setStyle(ButtonStyle.Success)
+
 );
 
-return message.reply(
-"📂 أرسل ID كاتيجوري الدعم."
-);
+
+
+message.channel.send({
+
+embeds:[embed],
+
+components:[row]
+
+});
 
 }
 
 
 
-if(message.content==="!staff"){
-
-waitingSetup.set(
-message.author.id,
-"staffCategory"
-);
-
-return message.reply(
-"📂 أرسل ID كاتيجوري التقديم."
-);
-
-}
+// ===== SUPPORT PANEL =====
 
 
+if(message.content==="!setup2"){
 
-if(message.content==="!idstaff"){
 
-waitingSetup.set(
-message.author.id,
-"supportRole"
-);
+const embed =
+new EmbedBuilder()
 
-return message.reply(
-"🎖️ أرسل ID رتبة الدعم."
-);
+.setColor("Blurple")
 
-}
+.setTitle("🎧 الدعم الفني | KRX")
+
+.setDescription(
+"اضغط الزر لفتح تذكرة الدعم."
+)
+
+.setTimestamp();
 
 
 
-if(message.content==="!idhigh"){
+const row =
+new ActionRowBuilder()
 
-waitingSetup.set(
-message.author.id,
-"highRole"
-);
+.addComponents(
 
-return message.reply(
-"👑 أرسل ID رتبة الإدارة العليا."
-);
+new ButtonBuilder()
 
-}
+.setCustomId("support_ticket")
 
+.setLabel("🎧 دعم")
 
+.setStyle(ButtonStyle.Primary)
 
-
-if(waitingSetup.has(message.author.id)){
-
-
-const key =
-waitingSetup.get(message.author.id);
-
-
-config[key] =
-message.content.trim();
-
-
-saveConfig();
-
-
-waitingSetup.delete(
-message.author.id
 );
 
 
-return message.reply(
-`✅ تم حفظ ${key}`
-);
+
+message.channel.send({
+
+embeds:[embed],
+
+components:[row]
+
+});
 
 
 }
 
 
 });
-
-
-
 // =========================
 // فتح التذاكر
 // =========================
 
-client.on(
-Events.InteractionCreate,
-async interaction=>{
+client.on(Events.InteractionCreate, async interaction => {
 
-
-if(!interaction.isButton())
-return;
-
+if(!interaction.isButton()) return;
 
 
 let type;
-let category;
-let role;
-
+let roles=[];
 
 
 if(interaction.customId==="apply_ticket"){
 
 type="تقديم";
-category=config.staffCategory;
-role=config.highRole;
+
+roles=config.APPLY_ADMIN;
 
 }
 
@@ -257,8 +238,8 @@ role=config.highRole;
 if(interaction.customId==="support_ticket"){
 
 type="دعم";
-category=config.supportCategory;
-role=config.supportRole;
+
+roles=config.SUPPORT_ADMIN;
 
 }
 
@@ -268,39 +249,11 @@ if(!type) return;
 
 
 
-if(!category){
-
-return interaction.reply({
-
-content:
-"❌ لم يتم تحديد الكاتيجوري.",
-ephemeral:true
-
-});
-
-}
-
-
-
-if(!role){
-
-return interaction.reply({
-
-content:
-"❌ لم يتم تحديد الرتبة.",
-ephemeral:true
-
-});
-
-}
-
-
-
-
 const oldTicket =
 interaction.guild.channels.cache.find(
 c=>c.topic===interaction.user.id
 );
+
 
 
 if(oldTicket){
@@ -308,7 +261,7 @@ if(oldTicket){
 return interaction.reply({
 
 content:
-`❌ لديك تذكرة مفتوحة ${oldTicket}`,
+`❌ لديك تذكرة مفتوحة بالفعل ${oldTicket}`,
 
 ephemeral:true
 
@@ -329,14 +282,13 @@ type:
 ChannelType.GuildText,
 
 parent:
-category,
+config.TICKET_CATEGORY,
 
 topic:
 interaction.user.id,
 
 
 permissionOverwrites:[
-
 
 {
 
@@ -350,7 +302,6 @@ PermissionsBitField.Flags.ViewChannel
 },
 
 
-
 {
 
 id:
@@ -367,11 +318,9 @@ PermissionsBitField.Flags.ReadMessageHistory
 },
 
 
+...roles.map(role=>({
 
-{
-
-id:
-role,
+id:role,
 
 allow:[
 
@@ -381,7 +330,7 @@ PermissionsBitField.Flags.ReadMessageHistory
 
 ]
 
-}
+}))
 
 
 ]
@@ -391,8 +340,10 @@ PermissionsBitField.Flags.ReadMessageHistory
 
 
 
+
 const row =
 new ActionRowBuilder()
+
 .addComponents(
 
 
@@ -419,27 +370,29 @@ new ButtonBuilder()
 
 
 
+const mention =
+roles.map(r=>`<@&${r}>`).join(" ");
+
+
+
 const embed =
 new EmbedBuilder()
 
 .setColor("Blue")
 
-.setTitle(
-`🎫 تذكرة ${type}`
-)
+.setTitle("🎫 تذكرة جديدة | KRX")
 
 .setDescription(
+
 `مرحباً ${interaction.user}
 
-اكتب تفاصيل طلبك هنا.
+اكتب تفاصيل طلبك.
 
 لاستلام التذكرة اكتب:
-\`دعم\``
-)
 
-.setFooter({
-text:"KRX Ticket System"
-})
+\`دعم\``
+
+)
 
 .setTimestamp();
 
@@ -448,7 +401,7 @@ text:"KRX Ticket System"
 await ticket.send({
 
 content:
-`${interaction.user} <@&${role}>`,
+`${interaction.user} ${mention}`,
 
 embeds:[embed],
 
@@ -458,7 +411,7 @@ components:[row]
 
 
 
-await interaction.reply({
+interaction.reply({
 
 content:
 `✅ تم فتح التذكرة ${ticket}`,
@@ -469,59 +422,85 @@ ephemeral:true
 
 
 });
+
+
+
+
 // =========================
-// استلام التذكرة
+// استلام التذكرة + نقاط
 // =========================
 
-client.on("messageCreate", async message => {
 
-if(message.author.bot) return;
+const claimedTickets = new Map();
 
-if(message.content !== "دعم") return;
+
+
+client.on("messageCreate",async message=>{
+
+
+if(message.author.bot)return;
+
+
+if(message.content!=="دعم")
+return;
+
 
 if(!message.channel.name.startsWith("🎫-"))
 return;
 
 
-// التحقق من الإدارة
 
-const isAdmin =
-message.member.roles.cache.has(config.supportRole) ||
-message.member.roles.cache.has(config.highRole);
+const admin =
+
+config.SUPPORT_ADMIN.some(r=>
+message.member.roles.cache.has(r)
+)
+
+||
+
+config.APPLY_ADMIN.some(r=>
+message.member.roles.cache.has(r)
+);
 
 
-if(!isAdmin){
+
+if(!admin){
 
 return message.reply(
-"❌ ليس لديك صلاحية لاستلام التذكرة."
+"❌ ليس لديك صلاحية."
 );
 
 }
 
 
-// هل مستلمة؟
 
 if(claimedTickets.has(message.channel.id)){
 
+
 return message.reply(
-`❌ تم استلامها بالفعل بواسطة <@${claimedTickets.get(message.channel.id)}>`
+
+`❌ مستلمة بواسطة <@${claimedTickets.get(message.channel.id)}>`
+
 );
 
 }
 
 
-// تسجيل المستلم
 
 claimedTickets.set(
+
 message.channel.id,
+
 message.author.id
+
 );
 
 
-// إضافة نقاط
 
 if(!points[message.author.id])
+
 points[message.author.id]=0;
+
 
 
 points[message.author.id]+=2;
@@ -530,8 +509,6 @@ points[message.author.id]+=2;
 savePoints();
 
 
-
-// رسالة داخل التذكرة
 
 message.channel.send({
 
@@ -545,143 +522,46 @@ new EmbedBuilder()
 
 .setDescription(
 
-`👤 المستلم:
+`👤 الإداري:
 ${message.author}
 
-⭐ تمت إضافة:
-**+2 نقطة**
-
-📊 مجموع النقاط:
-**${points[message.author.id]}**
-
-`
+⭐ حصل على +2 نقطة`
 
 )
-
-.setTimestamp()
 
 ]
 
 });
 
 
-
-// DM
 
 try{
 
-await message.author.send({
+message.author.send(
 
-embeds:[
+`🎉 تم استلام تذكرة\n⭐ نقاطك الآن: ${points[message.author.id]}`
 
-new EmbedBuilder()
-
-.setColor("Green")
-
-.setTitle("🎉 استلام تذكرة")
-
-.setDescription(
-
-`تم استلام تذكرة بنجاح.
-
-⭐ نقاطك الحالية:
-**${points[message.author.id]}**`
-
-)
-
-]
-
-});
+);
 
 }catch{}
 
 
-// لوج الاستلام
-
-if(config.claimLogChannel){
-
-
-const log =
-message.guild.channels.cache.get(
-config.claimLogChannel
-);
-
-
-if(log){
-
-log.send({
-
-embeds:[
-
-new EmbedBuilder()
-
-.setColor("Blue")
-
-.setTitle("📋 استلام تذكرة")
-
-.addFields(
-
-{
-name:"الإداري",
-value:`${message.author}`,
-inline:true
-},
-
-{
-name:"التذكرة",
-value:`${message.channel}`,
-inline:true
-},
-
-{
-name:"النقاط",
-value:`${points[message.author.id]}`,
-inline:true
-}
-
-)
-
-.setTimestamp()
-
-]
 
 });
-
-}
-
-
-}
-
-
-});
-
-
-
-
 // =========================
 // عرض النقاط
+// !points
 // =========================
 
+client.on("messageCreate",async message=>{
 
-client.on("messageCreate", async message=>{
+if(message.author.bot)return;
 
-
-if(message.author.bot) return;
-
-
-if(message.content !== "!points")
+if(message.content!=="!points")
 return;
 
 
-const myPoints =
-points[message.author.id] || 0;
-
-
-
-message.reply({
-
-embeds:[
-
+const embed =
 new EmbedBuilder()
 
 .setColor("Gold")
@@ -689,12 +569,16 @@ new EmbedBuilder()
 .setTitle("⭐ نقاطك")
 
 .setDescription(
-`لديك **${myPoints}** نقطة.`
+`لديك **${points[message.author.id] || 0}** نقطة.`
 )
 
-.setTimestamp()
+.setTimestamp();
 
-]
+
+
+message.reply({
+
+embeds:[embed]
 
 });
 
@@ -706,13 +590,14 @@ new EmbedBuilder()
 
 // =========================
 // إضافة نقاط
+// +point @user 10
 // =========================
 
 
-client.on("messageCreate", async message=>{
+client.on("messageCreate",async message=>{
 
 
-if(message.author.bot) return;
+if(message.author.bot)return;
 
 
 if(!message.content.startsWith("+point "))
@@ -720,16 +605,22 @@ return;
 
 
 
-const isAdmin =
-message.member.roles.cache.has(config.supportRole) ||
-message.member.roles.cache.has(config.highRole);
+const admin =
 
+config.SUPPORT_ADMIN.some(r=>
+message.member.roles.cache.has(r)
+)
 
+||
 
-if(!isAdmin)
-return message.reply(
-"❌ ليس لديك صلاحية."
+config.APPLY_ADMIN.some(r=>
+message.member.roles.cache.has(r)
 );
+
+
+
+if(!admin)
+return message.reply("❌ ليس لديك صلاحية.");
 
 
 
@@ -742,17 +633,16 @@ Number(message.content.split(" ")[2]);
 
 
 
-if(!member || isNaN(amount)){
+if(!member || isNaN(amount))
 
 return message.reply(
 "الاستخدام:\n+point @user 10"
 );
 
-}
-
 
 
 if(!points[member.id])
+
 points[member.id]=0;
 
 
@@ -766,11 +656,9 @@ savePoints();
 
 message.channel.send(
 
-`✅ تمت إضافة **${amount}** نقطة إلى ${member}
-⭐ المجموع: **${points[member.id]}**`
+`✅ تمت إضافة ${amount} نقطة إلى ${member}`
 
 );
-
 
 
 });
@@ -780,13 +668,14 @@ message.channel.send(
 
 // =========================
 // خصم نقاط
+// -point @user 10
 // =========================
 
 
-client.on("messageCreate", async message=>{
+client.on("messageCreate",async message=>{
 
 
-if(message.author.bot) return;
+if(message.author.bot)return;
 
 
 if(!message.content.startsWith("-point "))
@@ -794,16 +683,22 @@ return;
 
 
 
-const isAdmin =
-message.member.roles.cache.has(config.supportRole) ||
-message.member.roles.cache.has(config.highRole);
+const admin =
 
+config.SUPPORT_ADMIN.some(r=>
+message.member.roles.cache.has(r)
+)
 
+||
 
-if(!isAdmin)
-return message.reply(
-"❌ ليس لديك صلاحية."
+config.APPLY_ADMIN.some(r=>
+message.member.roles.cache.has(r)
 );
+
+
+
+if(!admin)
+return message.reply("❌ ليس لديك صلاحية.");
 
 
 
@@ -817,17 +712,16 @@ Number(message.content.split(" ")[2]);
 
 
 
-if(!member || isNaN(amount)){
+if(!member || isNaN(amount))
 
 return message.reply(
 "الاستخدام:\n-point @user 10"
 );
 
-}
-
 
 
 if(!points[member.id])
+
 points[member.id]=0;
 
 
@@ -837,6 +731,7 @@ points[member.id]-=amount;
 
 
 if(points[member.id]<0)
+
 points[member.id]=0;
 
 
@@ -847,8 +742,7 @@ savePoints();
 
 message.channel.send(
 
-`➖ تم خصم **${amount}** نقطة من ${member}
-⭐ المجموع: **${points[member.id]}**`
+`➖ تم خصم ${amount} نقطة من ${member}`
 
 );
 
@@ -860,21 +754,23 @@ message.channel.send(
 
 // =========================
 // أفضل الإداريين
+// $top
 // =========================
 
 
-client.on("messageCreate", async message=>{
+client.on("messageCreate",async message=>{
 
 
-if(message.author.bot) return;
+if(message.author.bot)return;
 
 
-if(message.content !== "$top")
+if(message.content!="$top")
 return;
 
 
 
 const top =
+
 Object.entries(points)
 
 .sort((a,b)=>b[1]-a[1])
@@ -883,10 +779,10 @@ Object.entries(points)
 
 
 
-if(top.length===0)
+if(!top.length)
 
 return message.reply(
-"❌ لا توجد نقاط."
+"❌ لا يوجد نقاط."
 );
 
 
@@ -905,13 +801,11 @@ new EmbedBuilder()
 
 top.map((x,i)=>
 
-`**${i+1}.** <@${x[0]}> — ⭐ **${x[1]}**`
+`${i+1}- <@${x[0]}> ⭐ ${x[1]}`
 
 ).join("\n")
 
 )
-
-.setTimestamp()
 
 ]
 
@@ -919,53 +813,321 @@ top.map((x,i)=>
 
 
 });
+
+
+
+
+// =========================
+// SHOP
+// =========================
+
+
+// !shop
+
+client.on("messageCreate",async message=>{
+
+
+if(message.author.bot)return;
+
+
+if(message.content!=="!shop")
+return;
+
+
+
+if(!shop.length)
+
+return message.reply(
+"🛒 الشوب فارغ."
+);
+
+
+
+const embed =
+new EmbedBuilder()
+
+.setColor("Gold")
+
+.setTitle("🛒 متجر النقاط")
+
+.setDescription(
+
+shop.map((x,i)=>
+
+`${i+1}- **${x.name}**
+⭐ السعر: ${x.price}`
+
+).join("\n\n")
+
+);
+
+
+
+message.reply({
+
+embeds:[embed]
+
+});
+
+
+});
+
+
+
+
+// =========================
+// شراء
+// !buy رقم
+// =========================
+
+
+client.on("messageCreate",async message=>{
+
+
+if(message.author.bot)return;
+
+
+if(!message.content.startsWith("!buy "))
+return;
+
+
+
+const id =
+Number(message.content.split(" ")[1])-1;
+
+
+
+if(!shop[id])
+
+return message.reply(
+"❌ المنتج غير موجود."
+);
+
+
+
+const item=shop[id];
+
+
+const userPoints =
+points[message.author.id] || 0;
+
+
+
+if(userPoints < item.price)
+
+return message.reply(
+"❌ لا تملك نقاط كافية."
+);
+
+
+
+points[message.author.id]-=item.price;
+
+
+savePoints();
+
+
+
+message.reply(
+
+`✅ اشتريت **${item.name}**
+⭐ تم خصم ${item.price} نقطة`
+
+);
+
+
+});
+
+
+
+
+// =========================
+// إضافة منتج
+// صاحب السيرفر
+// !addshop اسم السعر
+// =========================
+
+
+client.on("messageCreate",async message=>{
+
+
+if(message.author.bot)return;
+
+
+if(!message.content.startsWith("!addshop "))
+return;
+
+
+
+if(message.author.id !== message.guild.ownerId)
+
+return message.reply(
+"❌ هذا الأمر لصاحب السيرفر."
+);
+
+
+
+const args =
+message.content.split(" ").slice(1);
+
+
+
+const price =
+Number(args.pop());
+
+
+
+const name =
+args.join(" ");
+
+
+
+if(!name || isNaN(price))
+
+return message.reply(
+"الاستخدام:\n!addshop VIP 100"
+);
+
+
+
+shop.push({
+
+name:name,
+
+price:price
+
+});
+
+
+saveShop();
+
+
+
+message.reply(
+`✅ تمت إضافة ${name}`
+);
+
+
+});
+// =========================
+// حذف منتج من الشوب
+// !delshop رقم
+// =========================
+
+client.on("messageCreate",async message=>{
+
+
+if(message.author.bot)return;
+
+
+if(!message.content.startsWith("!delshop "))
+return;
+
+
+
+if(message.author.id !== message.guild.ownerId)
+
+return message.reply(
+"❌ هذا الأمر لصاحب السيرفر فقط."
+);
+
+
+
+const id =
+Number(message.content.split(" ")[1])-1;
+
+
+
+if(!shop[id])
+
+return message.reply(
+"❌ المنتج غير موجود."
+);
+
+
+
+const removed =
+shop.splice(id,1)[0];
+
+
+saveShop();
+
+
+
+message.reply(
+`🗑️ تم حذف ${removed.name} من الشوب.`
+);
+
+
+});
+
+
+
+
 // =========================
 // تغيير اسم التذكرة
+// !rename
 // =========================
 
-client.on("messageCreate", async message=>{
+client.on("messageCreate",async message=>{
 
-if(message.author.bot) return;
 
-if(!message.channel.name.startsWith("🎫-"))
-return;
+if(message.author.bot)return;
 
 
 if(!message.content.startsWith("!rename "))
 return;
 
 
-const isAdmin =
-message.member.roles.cache.has(config.supportRole) ||
-message.member.roles.cache.has(config.highRole);
+
+if(!message.channel.name.startsWith("🎫-"))
+return;
 
 
 
-if(!isAdmin)
-return message.reply("❌ ليس لديك صلاحية.");
+const admin =
+
+config.SUPPORT_ADMIN.some(r=>
+message.member.roles.cache.has(r)
+)
+
+||
+
+config.APPLY_ADMIN.some(r=>
+message.member.roles.cache.has(r)
+);
 
 
 
-const newName =
+if(!admin)
+
+return message.reply(
+"❌ ليس لديك صلاحية."
+);
+
+
+
+const name =
 message.content.slice(8).trim();
 
 
 
-if(!newName)
+if(!name)
+
 return message.reply(
-"مثال:\n!rename مشكلة-الدفع"
+"مثال: !rename مشكلة"
 );
 
 
 
 await message.channel.setName(
-`🎫-${newName}`
+`🎫-${name}`
 );
 
 
 
 message.reply(
-`✅ تم تغيير الاسم إلى 🎫-${newName}`
+"✅ تم تغيير اسم التذكرة."
 );
 
 
@@ -976,16 +1138,19 @@ message.reply(
 
 // =========================
 // حذف التذكرة
+// !delete
 // =========================
 
-client.on("messageCreate", async message=>{
+
+client.on("messageCreate",async message=>{
 
 
-if(message.author.bot) return;
+if(message.author.bot)return;
 
 
-if(message.content !== "!delete")
+if(message.content!=="!delete")
 return;
+
 
 
 if(!message.channel.name.startsWith("🎫-"))
@@ -1007,95 +1172,15 @@ message.channel.delete()
 },5000);
 
 
-
 });
 
 
 
 
 // =========================
-// إعداد اللوج والتقييم
+// التقييم
 // =========================
 
-client.on("messageCreate", async message=>{
-
-
-if(message.author.bot) return;
-
-
-if(
-!message.member.permissions.has(
-PermissionsBitField.Flags.Administrator
-)
-)
-return;
-
-
-
-if(message.content==="!claimlog"){
-
-return message.reply(
-"📋 أرسل ID روم لوج الاستلام."
-);
-
-}
-
-
-
-if(message.content==="!ratinglog"){
-
-return message.reply(
-"⭐ أرسل ID روم التقييم."
-);
-
-}
-
-
-
-if(/^[0-9]{17,20}$/.test(message.content)){
-
-
-
-if(!config.claimLogChannel){
-
-config.claimLogChannel =
-message.content;
-
-saveConfig();
-
-return message.reply(
-"✅ تم حفظ روم لوج الاستلام."
-);
-
-}
-
-
-
-if(!config.ratingChannel){
-
-config.ratingChannel =
-message.content;
-
-saveConfig();
-
-return message.reply(
-"✅ تم حفظ روم التقييم."
-);
-
-}
-
-
-}
-
-
-});
-
-
-
-
-// =========================
-// زر إغلاق التذكرة
-// =========================
 
 client.on(
 Events.InteractionCreate,
@@ -1113,8 +1198,8 @@ return;
 
 const row =
 new ActionRowBuilder()
-.addComponents(
 
+.addComponents(
 
 new ButtonBuilder()
 .setCustomId("rate_1")
@@ -1160,14 +1245,12 @@ new EmbedBuilder()
 .setTitle("⭐ تقييم الخدمة")
 
 .setDescription(
-"اختر تقييمك قبل حذف التذكرة."
+"اختر تقييمك."
 )
 
 ],
 
-components:[row],
-
-ephemeral:true
+components:[row]
 
 });
 
@@ -1177,9 +1260,7 @@ ephemeral:true
 
 
 
-// =========================
 // استقبال التقييم
-// =========================
 
 client.on(
 Events.InteractionCreate,
@@ -1202,7 +1283,7 @@ interaction.customId.split("_")[1];
 
 const channel =
 interaction.guild.channels.cache.get(
-config.ratingChannel
+config.RATING_CHANNEL
 );
 
 
@@ -1223,33 +1304,19 @@ new EmbedBuilder()
 
 {
 name:"العضو",
-value:`${interaction.user}`,
-inline:true
+value:`${interaction.user}`
 },
-
 
 {
 name:"التقييم",
-value:
-"⭐".repeat(Number(rate)),
-inline:true
-},
-
-
-{
-name:"التذكرة",
-value:`${interaction.channel}`,
-inline:false
+value:"⭐".repeat(Number(rate))
 }
 
 )
 
-.setTimestamp()
-
 ]
 
 });
-
 
 }
 
@@ -1281,14 +1348,15 @@ interaction.channel.delete()
 
 
 // =========================
-// إرسال DM
+// DM
+// !dm
 // =========================
 
-client.on("messageCreate", async message=>{
+
+client.on("messageCreate",async message=>{
 
 
-if(message.author.bot)
-return;
+if(message.author.bot)return;
 
 
 if(!message.content.startsWith("!dm"))
@@ -1299,19 +1367,13 @@ return;
 if(!message.member.permissions.has(
 PermissionsBitField.Flags.Administrator
 ))
-return message.reply("❌ ليس لديك صلاحية.");
+
+return;
 
 
 
 const member =
 message.mentions.members.first();
-
-
-
-if(!member)
-return message.reply(
-"منشن العضو."
-);
 
 
 
@@ -1322,35 +1384,30 @@ message.content.split(" ")
 
 
 
-if(!text)
+if(!member || !text)
+
 return message.reply(
-"اكتب الرسالة."
+"!dm @user الرسالة"
 );
 
 
 
 try{
 
-
 await member.send(text);
 
-
 message.reply(
-"✅ تم إرسال الرسالة."
+"✅ تم الإرسال."
 );
 
 
-
 }catch{
-
 
 message.reply(
 "❌ الخاص مغلق."
 );
 
-
 }
-
 
 
 });
@@ -1359,15 +1416,14 @@ message.reply(
 
 
 // =========================
-// إرسال للجميع
+// DMS للجميع
 // =========================
 
-client.on("messageCreate", async message=>{
+
+client.on("messageCreate",async message=>{
 
 
-if(message.author.bot)
-return;
-
+if(message.author.bot)return;
 
 
 if(!message.content.startsWith("!dms"))
@@ -1378,7 +1434,8 @@ return;
 if(!message.member.permissions.has(
 PermissionsBitField.Flags.Administrator
 ))
-return message.reply("❌ ليس لديك صلاحية.");
+
+return;
 
 
 
@@ -1386,13 +1443,6 @@ const text =
 message.content.split(" ")
 .slice(1)
 .join(" ");
-
-
-
-if(!text)
-return message.reply(
-"اكتب الرسالة."
-);
 
 
 
@@ -1414,7 +1464,6 @@ await member.send(text);
 
 sent++;
 
-
 }catch{
 
 failed++;
@@ -1427,10 +1476,11 @@ failed++;
 
 
 message.reply(
-`✅ تم الإرسال: ${sent}
-❌ فشل: ${failed}`
-);
 
+`✅ ${sent}
+❌ ${failed}`
+
+);
 
 
 });
