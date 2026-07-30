@@ -590,61 +590,53 @@ embeds:[embed]
 
 // =========================
 // إضافة نقاط
-// +point @user 10
+// /point اسم الشخص العدد
 // =========================
 
+client.on(Events.InteractionCreate, async interaction => {
 
-client.on("messageCreate",async message=>{
+if(!interaction.isChatInputCommand())
+return;
 
-
-if(message.author.bot)return;
-
-
-if(!message.content.startsWith("+point "))
+if(interaction.commandName !== "point")
 return;
 
 
-
 const admin =
-
-config.SUPPORT_ADMIN.some(r=>
-message.member.roles.cache.has(r)
+config.SUPPORT_ADMIN.some(r =>
+interaction.member.roles.cache.has(r)
 )
-
 ||
-
-config.APPLY_ADMIN.some(r=>
-message.member.roles.cache.has(r)
+config.APPLY_ADMIN.some(r =>
+interaction.member.roles.cache.has(r)
 );
-
 
 
 if(!admin)
-return message.reply("❌ ليس لديك صلاحية.");
-
+return interaction.reply({
+content:"❌ ليس لديك صلاحية.",
+ephemeral:true
+});
 
 
 const member =
-message.mentions.members.first();
+interaction.options.getMember("user");
 
 
 const amount =
-Number(message.content.split(" ")[2]);
+interaction.options.getNumber("amount");
 
 
+if(!member || !amount)
 
-if(!member || isNaN(amount))
-
-return message.reply(
-"الاستخدام:\n+point @user 10"
-);
-
+return interaction.reply({
+content:"❌ الاستخدام: /point user amount",
+ephemeral:true
+});
 
 
 if(!points[member.id])
-
 points[member.id]=0;
-
 
 
 points[member.id]+=amount;
@@ -653,18 +645,12 @@ points[member.id]+=amount;
 savePoints();
 
 
-
-message.channel.send(
-
+interaction.reply(
 `✅ تمت إضافة ${amount} نقطة إلى ${member}`
-
 );
 
 
 });
-
-
-
 
 // =========================
 // خصم نقاط
