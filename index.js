@@ -28,22 +28,27 @@ GatewayIntentBits.DirectMessages
 });
 
 // =========================
-// الإعدادات
+// Config System
 // =========================
 
-const TICKET_CATEGORY = "1531926623580979230";
-const RATING_CHANNEL = "1531943465091596402";
-const CLAIM_LOG_CHANNEL = "1531943869682548826";
+const CONFIG_FILE = "./config.json";
 
-const APPLY_ADMIN = [
-"1528157507665658018",
-"1528157508869558463"
-];
+let config = {
+supportCategory:"",
+staffCategory:"",
+supportRole:"",
+highRole:"",
+ratingChannel:"",
+claimLogChannel:""
+};
 
-const SUPPORT_ADMIN = [
-"1528157557192134726",
-"1528157558416609331"
-];
+if(fs.existsSync(CONFIG_FILE)){
+config = JSON.parse(fs.readFileSync(CONFIG_FILE,"utf8"));
+}
+
+function saveConfig(){
+fs.writeFileSync(CONFIG_FILE,JSON.stringify(config,null,2));
+}
 
 // =========================
 // حفظ النقاط
@@ -63,12 +68,8 @@ JSON.stringify(points,null,2)
 }
 
 // =========================
-// التذاكر المستلمة
-// =========================
 
 const claimedTickets = new Map();
-
-// =========================
 
 client.once("ready",()=>{
 
@@ -77,87 +78,55 @@ console.log(`✅ ${client.user.tag} Online`);
 });
 
 // =========================
-// إرسال بانل التقديم
+// أوامر الإعداد
 // =========================
+
+const waitingSetup = new Map();
 
 client.on("messageCreate",async message=>{
 
 if(message.author.bot) return;
 
-if(message.content==="!setup1"){
+if(!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+return;
 
-const embed=new EmbedBuilder()
-
-.setColor("Blue")
-
-.setTitle("📝 تقديم الإدارة | KRX")
-
-.setDescription("اضغط الزر لفتح تذكرة تقديم الإدارة.")
-
-.setTimestamp();
-
-const row=new ActionRowBuilder()
-
-.addComponents(
-
-new ButtonBuilder()
-
-.setCustomId("apply_ticket")
-
-.setLabel("📝 تقديم")
-
-.setStyle(ButtonStyle.Success)
-
-);
-
-return message.channel.send({
-
-embeds:[embed],
-
-components:[row]
-
-});
-
+// support category
+if(message.content==="!supportlog"){
+waitingSetup.set(message.author.id,"supportCategory");
+return message.reply("📂 أرسل الآن ID كاتيجوري الدعم.");
 }
 
-// =========================
-// إرسال بانل الدعم
-// =========================
+// staff category
+if(message.content==="!staff"){
+waitingSetup.set(message.author.id,"staffCategory");
+return message.reply("📂 أرسل الآن ID كاتيجوري التقديم.");
+}
 
-if(message.content==="!setup2"){
+// support role
+if(message.content==="!idstaff"){
+waitingSetup.set(message.author.id,"supportRole");
+return message.reply("🎖️ أرسل الآن ID رتبة الدعم.");
+}
 
-const embed=new EmbedBuilder()
+// high role
+if(message.content==="!idhigh"){
+waitingSetup.set(message.author.id,"highRole");
+return message.reply("👑 أرسل الآن ID رتبة الإدارة العليا.");
+}
 
-.setColor("Blurple")
+// استقبال الـ ID
 
-.setTitle("🎧 الدعم الفني | KRX")
+if(waitingSetup.has(message.author.id)){
 
-.setDescription("اضغط الزر لفتح تذكرة الدعم.")
+const key = waitingSetup.get(message.author.id);
 
-.setTimestamp();
+config[key]=message.content.trim();
 
-const row=new ActionRowBuilder()
+saveConfig();
 
-.addComponents(
+waitingSetup.delete(message.author.id);
 
-new ButtonBuilder()
-
-.setCustomId("support_ticket")
-
-.setLabel("🎧 دعم")
-
-.setStyle(ButtonStyle.Primary)
-
-);
-
-return message.channel.send({
-
-embeds:[embed],
-
-components:[row]
-
-});
-
+return message.reply(`✅ تم حفظ ${key} بنجاح.`);
 }
 
 });
@@ -170,34 +139,46 @@ client.on(Events.InteractionCreate, async interaction => {
 if(!interaction.isButton()) return;
 
 let type = null;
-let roles = [];
+let category = null;
+let role = null;
 
 if(interaction.customId === "apply_ticket"){
 type = "تقديم";
-roles = APPLY_ADMIN;
+category = config.staffCategory;
+role = config.highRole;
 }
 
 if(interaction.customId === "support_ticket"){
 type = "دعم";
-roles = SUPPORT_ADMIN;
+category = config.supportCategory;
+role = config.supportRole;
 }
 
 if(!type) return;
 
+if(!category)
+return interaction.reply({
+content:"❌ لم يتم تحديد كاتيجوري لهذا النوع من التذاكر.",
+ephemeral:true
+});
+
+if(!role)
+return interaction.reply({
+content:"❌ لم يتم تحديد الرتبة لهذا النوع من التذاكر.",
+ephemeral:true
+});
+
 // منع فتح أكثر من تذكرة
 
 const oldTicket = interaction.guild.channels.cache.find(c =>
-c.parentId === TICKET_CATEGORY &&
 c.topic === interaction.user.id
 );
 
 if(oldTicket){
-
 return interaction.reply({
 content:`❌ لديك تذكرة مفتوحة بالفعل: ${oldTicket}`,
 ephemeral:true
 });
-
 }
 
 // إنشاء التذكرة
@@ -208,7 +189,7 @@ name:`🎫-${type}-${interaction.user.username}`,
 
 type:ChannelType.GuildText,
 
-parent:TICKET_CATEGORY,
+parent:category,
 
 topic:interaction.user.id,
 
@@ -230,17 +211,14 @@ PermissionsBitField.Flags.ReadMessageHistory
 ]
 },
 
-...roles.map(role=>({
-
+{
 id:role,
-
 allow:[
 PermissionsBitField.Flags.ViewChannel,
 PermissionsBitField.Flags.SendMessages,
 PermissionsBitField.Flags.ReadMessageHistory
 ]
-
-}))
+}
 
 ]
 
@@ -264,25 +242,19 @@ new ButtonBuilder()
 
 );
 
-const mention = roles
-.map(r=>`<@&${r}>`)
-.join(" ");
-
 const embed = new EmbedBuilder()
 
 .setColor("Blue")
 
-.setTitle("🎫 تذكرة جديدة | KRX")
+.setTitle(`🎫 تذكرة ${type}`)
 
-.setDescription(
-`مرحباً ${interaction.user}
+.setDescription(`مرحباً ${interaction.user}
 
-يرجى شرح مشكلتك.
+يرجى كتابة تفاصيل طلبك.
 
 **لاستلام التذكرة يكتب الإداري:**
 
-\`دعم\``
-)
+\`دعم\``)
 
 .setFooter({
 text:"KRX Ticket System"
@@ -292,21 +264,11 @@ text:"KRX Ticket System"
 
 await ticket.send({
 
-content:`${interaction.user} ${mention}`,
+content:`${interaction.user} <@&${role}>`,
 
 embeds:[embed],
 
 components:[row]
-
-});
-
-await interaction.reply({
-
-content:`✅ تم فتح التذكرة ${ticket}`,
-
-ephemeral:true
-
-});
 
 });
 // =========================
@@ -324,8 +286,8 @@ if(!message.channel.name.startsWith("🎫-")) return;
 // التحقق من أن الشخص إداري
 
 const isAdmin =
-SUPPORT_ADMIN.some(r=>message.member.roles.cache.has(r)) ||
-APPLY_ADMIN.some(r=>message.member.roles.cache.has(r));
+message.member.roles.cache.has(config.supportRole) ||
+message.member.roles.cache.has(config.highRole);
 
 if(!isAdmin){
 return message.reply("❌ ليس لديك صلاحية لاستلام التذكرة.");
@@ -375,6 +337,9 @@ new EmbedBuilder()
 
 ➕ حصل على **+2 نقطة**.
 
+⭐ مجموع نقاطه الآن:
+**${points[message.author.id]}**
+
 يرجى متابعة العميل حتى انتهاء المشكلة.`
 )
 
@@ -416,8 +381,10 @@ new EmbedBuilder()
 
 // اللوج
 
+if(config.claimLogChannel){
+
 const log =
-message.guild.channels.cache.get(CLAIM_LOG_CHANNEL);
+message.guild.channels.cache.get(config.claimLogChannel);
 
 if(log){
 
@@ -461,8 +428,10 @@ inline:true
 
 }
 
+}
+
 });
-// =========================
+  // =========================
 // عرض نقاطك
 // =========================
 
@@ -488,10 +457,8 @@ message.reply({embeds:[embed]});
 
 });
 
-
 // =========================
 // إضافة نقاط
-// !point @user 10
 // =========================
 
 client.on("messageCreate", async (message) => {
@@ -501,8 +468,8 @@ if(message.author.bot) return;
 if(!message.content.startsWith("+point ")) return;
 
 const isAdmin =
-SUPPORT_ADMIN.some(r=>message.member.roles.cache.has(r)) ||
-APPLY_ADMIN.some(r=>message.member.roles.cache.has(r));
+message.member.roles.cache.has(config.supportRole) ||
+message.member.roles.cache.has(config.highRole);
 
 if(!isAdmin)
 return message.reply("❌ ليس لديك صلاحية.");
@@ -512,7 +479,7 @@ const member = message.mentions.members.first();
 const amount = Number(message.content.split(" ")[2]);
 
 if(!member || isNaN(amount))
-return message.reply("الاستخدام:\n!point @user 10");
+return message.reply("الاستخدام:\n+point @user 10");
 
 if(!points[member.id]) points[member.id]=0;
 
@@ -534,10 +501,8 @@ await member.send(
 
 });
 
-
 // =========================
 // خصم نقاط
-// -point @user 10
 // =========================
 
 client.on("messageCreate", async (message) => {
@@ -547,8 +512,8 @@ if(message.author.bot) return;
 if(!message.content.startsWith("-point ")) return;
 
 const isAdmin =
-SUPPORT_ADMIN.some(r=>message.member.roles.cache.has(r)) ||
-APPLY_ADMIN.some(r=>message.member.roles.cache.has(r));
+message.member.roles.cache.has(config.supportRole) ||
+message.member.roles.cache.has(config.highRole);
 
 if(!isAdmin)
 return message.reply("❌ ليس لديك صلاحية.");
@@ -583,7 +548,6 @@ await member.send(
 
 });
 
-
 // =========================
 // أفضل الإداريين
 // =========================
@@ -595,9 +559,7 @@ if(message.author.bot) return;
 if(message.content !== "$top") return;
 
 const top = Object.entries(points)
-
 .sort((a,b)=>b[1]-a[1])
-
 .slice(0,10);
 
 if(top.length===0)
@@ -628,7 +590,7 @@ embeds:[embed]
 });
 
 });
-// =========================
+  // =========================
 // تغيير اسم التذكرة
 // =========================
 
@@ -641,8 +603,8 @@ if(!message.channel.name.startsWith("🎫-")) return;
 if(!message.content.startsWith("!rename ")) return;
 
 const isAdmin =
-SUPPORT_ADMIN.some(r=>message.member.roles.cache.has(r)) ||
-APPLY_ADMIN.some(r=>message.member.roles.cache.has(r));
+message.member.roles.cache.has(config.supportRole) ||
+message.member.roles.cache.has(config.highRole);
 
 if(!isAdmin)
 return message.reply("❌ ليس لديك صلاحية.");
@@ -657,7 +619,6 @@ await message.channel.setName(`🎫-${newName}`);
 message.reply(`✅ تم تغيير اسم التذكرة إلى **🎫-${newName}**`);
 
 });
-
 
 // =========================
 // حذف التذكرة
@@ -676,18 +637,50 @@ message.reply("🗑️ سيتم حذف التذكرة بعد 5 ثوانٍ.");
 setTimeout(async()=>{
 
 try{
-
 await message.channel.delete();
-
 }catch{}
 
 },5000);
 
 });
 
+// =========================
+// تحديد روم اللوج
+// =========================
+
+client.on("messageCreate",async message=>{
+
+if(message.author.bot) return;
+
+if(!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+return;
+
+if(message.content==="!claimlog"){
+return message.reply("📋 أرسل الآن ID روم لوج استلام التذاكر.");
+}
+
+if(message.content==="!ratinglog"){
+return message.reply("⭐ أرسل الآن ID روم التقييم.");
+}
+
+if(message.reference) return;
+
+if(config.claimLogChannel==="" && /^[0-9]{17,20}$/.test(message.content)){
+config.claimLogChannel=message.content;
+saveConfig();
+return message.reply("✅ تم حفظ روم لوج الاستلام.");
+}
+
+if(config.ratingChannel==="" && /^[0-9]{17,20}$/.test(message.content)){
+config.ratingChannel=message.content;
+saveConfig();
+return message.reply("✅ تم حفظ روم التقييم.");
+}
+
+});
 
 // =========================
-// زر الإغلاق والتقييم
+// زر الإغلاق
 // =========================
 
 client.on(Events.InteractionCreate, async(interaction)=>{
@@ -729,11 +722,8 @@ interaction.reply({
 
 embeds:[
 new EmbedBuilder()
-
 .setColor("Blue")
-
 .setTitle("⭐ تقييم الخدمة")
-
 .setDescription("اختر تقييمك قبل حذف التذكرة.")
 ],
 
@@ -742,7 +732,6 @@ components:[row]
 });
 
 });
-
 
 // =========================
 // استقبال التقييم
@@ -757,7 +746,7 @@ if(!interaction.customId.startsWith("rate_")) return;
 const rate = interaction.customId.split("_")[1];
 
 const channel =
-interaction.guild.channels.cache.get(RATING_CHANNEL);
+interaction.guild.channels.cache.get(config.ratingChannel);
 
 if(channel){
 
@@ -787,7 +776,7 @@ inline:true
 
 {
 name:"التذكرة",
-value:`${interaction.channel.name}`,
+value:`${interaction.channel}`,
 inline:false
 }
 
@@ -812,67 +801,83 @@ ephemeral:true
 setTimeout(async()=>{
 
 try{
-
 await interaction.channel.delete();
-
 }catch{}
 
 },5000);
 
 });
+
+// =========================
+// إرسال DM
+// =========================
+
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
 
-  if (!message.content.startsWith("!dm")) return;
+if(message.author.bot) return;
 
-  if (!message.member.permissions.has("Administrator")) {
-    return message.reply("❌ ليس لديك صلاحية.");
-  }
+if(!message.content.startsWith("!dm")) return;
 
-  const member = message.mentions.members.first();
-  if (!member) return message.reply("منشن العضو.");
+if(!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+return message.reply("❌ ليس لديك صلاحية.");
 
-  const args = message.content.split(" ").slice(2);
-  const text = args.join(" ");
+const member = message.mentions.members.first();
 
-  if (!text) return message.reply("اكتب الرسالة.");
+if(!member) return message.reply("منشن العضو.");
 
-  try {
-    await member.send(text);
-    message.reply("✅ تم إرسال الرسالة في الخاص.");
-  } catch {
-    message.reply("❌ تعذر إرسال الرسالة، ربما الخاص مغلق.");
-  }
+const text = message.content.split(" ").slice(2).join(" ");
+
+if(!text) return message.reply("اكتب الرسالة.");
+
+try{
+
+await member.send(text);
+
+message.reply("✅ تم إرسال الرسالة.");
+
+}catch{
+
+message.reply("❌ الخاص مغلق.");
+
+}
+
 });
 
+// =========================
+// إرسال للجميع
+// =========================
+
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
 
-  if (!message.content.startsWith("!dms")) return;
+if(message.author.bot) return;
 
-  if (!message.member.permissions.has("Administrator")) {
-    return message.reply("❌ ليس لديك صلاحية.");
-  }
+if(!message.content.startsWith("!dms")) return;
 
-  const text = message.content.split(" ").slice(1).join(" ");
+if(!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+return message.reply("❌ ليس لديك صلاحية.");
 
-  if (!text) return message.reply("اكتب الرسالة.");
+const text = message.content.split(" ").slice(1).join(" ");
 
-  let sent = 0;
-  let failed = 0;
+if(!text) return message.reply("اكتب الرسالة.");
 
-  for (const member of message.guild.members.cache.values()) {
-    if (member.user.bot) continue;
+let sent = 0;
+let failed = 0;
 
-    try {
-      await member.send(text);
-      sent++;
-    } catch {
-      failed++;
-    }
-  }
+for(const member of message.guild.members.cache.values()){
 
-  message.reply(`✅ تم الإرسال إلى ${sent} عضو.\n❌ فشل الإرسال إلى ${failed} عضو.`);
+if(member.user.bot) continue;
+
+try{
+await member.send(text);
+sent++;
+}catch{
+failed++;
+}
+
+}
+
+message.reply(`✅ تم الإرسال إلى ${sent}\n❌ فشل ${failed}`);
+
 });
 
 // =========================
@@ -880,3 +885,12 @@ client.on("messageCreate", async (message) => {
 // =========================
 
 client.login(process.env.TOKEN);
+await interaction.reply({
+
+content:`✅ تم فتح التذكرة ${ticket}`,
+
+ephemeral:true
+
+});
+
+});
