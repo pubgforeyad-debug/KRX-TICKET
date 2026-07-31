@@ -6429,3 +6429,952 @@ app.post(
   }
 
 );
+// ==========================================
+// POINTS PAGE
+// ==========================================
+
+app.get(
+  "/dashboard/:guildId/points",
+  requireLogin,
+  async (req, res) => {
+
+    const guild =
+      await ensureAllowedGuild(
+        req,
+        res
+      );
+
+    if (!guild) return;
+
+
+    const guildPoints =
+      getGuildPoints(
+        guild.id
+      );
+
+
+    const top =
+      Object.entries(
+        guildPoints
+      )
+
+        .sort(
+          (a, b) =>
+            b[1] - a[1]
+        )
+
+        .slice(
+          0,
+          20
+        );
+
+
+    const rows =
+      top.length
+        ?
+        top.map(
+          ([userId, value], index) => {
+
+            const member =
+              guild.members.cache.get(
+                userId
+              );
+
+            return `
+<div class="leader-row">
+
+<span class="rank">
+${index + 1}
+</span>
+
+<div class="leader-user">
+
+<b>
+${esc(
+  member?.user?.username ||
+  userId
+)}
+</b>
+
+<small>
+${userId}
+</small>
+
+</div>
+
+<strong>
+⭐ ${Number(value)}
+</strong>
+
+</div>
+`;
+
+          }
+        ).join("")
+        :
+        `<div class="empty-inline">
+لا توجد نقاط.
+</div>`;
+
+
+    const content = `
+
+${pageHeader(
+  "إدارة النقاط",
+  "أضف أو اخصم أو عيّن أو صفّر نقاط أي عضو.",
+  "POINTS CONTROL"
+)}
+
+<form
+method="POST"
+action="/dashboard/${guild.id}/points/update"
+class="panel-card compact-form reveal"
+>
+
+<div class="three-col">
+
+<div class="field">
+
+<label>
+ID العضو
+</label>
+
+<input
+name="userId"
+placeholder="123456789..."
+required
+>
+
+</div>
+
+<div class="field">
+
+<label>
+العملية
+</label>
+
+<select name="action">
+
+<option value="add">
+إضافة
+</option>
+
+<option value="remove">
+خصم
+</option>
+
+<option value="set">
+تعيين
+</option>
+
+<option value="reset">
+تصفير
+</option>
+
+</select>
+
+</div>
+
+<div class="field">
+
+<label>
+العدد
+</label>
+
+<input
+type="number"
+name="amount"
+min="0"
+value="10"
+>
+
+</div>
+
+</div>
+
+<button
+class="primary-btn"
+type="submit"
+>
+⭐ تنفيذ
+</button>
+
+</form>
+
+
+<section class="panel-card reveal">
+
+<div class="card-title">
+
+<h2>
+🏆 أعلى النقاط
+</h2>
+
+</div>
+
+<div class="leader-list">
+${rows}
+</div>
+
+</section>
+`;
+
+
+    return res.send(
+      layout({
+        user:
+          req.session.user,
+
+        guild,
+
+        active:
+          "points",
+
+        content
+      })
+    );
+
+  }
+);
+
+
+// ==========================================
+// UPDATE POINTS
+// ==========================================
+
+app.post(
+  "/dashboard/:guildId/points/update",
+  requireLogin,
+  async (req, res) => {
+
+    const guild =
+      await ensureAllowedGuild(
+        req,
+        res
+      );
+
+    if (!guild) return;
+
+
+    const guildPoints =
+      getGuildPoints(
+        guild.id
+      );
+
+
+    const userId =
+      String(
+        req.body.userId || ""
+      ).trim();
+
+
+    const action =
+      String(
+        req.body.action || ""
+      );
+
+
+    const amount =
+      Math.max(
+        0,
+        Number(
+          req.body.amount || 0
+        )
+      );
+
+
+    if (
+      !/^\d{15,25}$/.test(
+        userId
+      )
+    ) {
+
+      return res
+        .status(400)
+        .send(
+          "❌ ID العضو غير صحيح."
+        );
+
+    }
+
+
+    guildPoints[
+      userId
+    ] =
+      Number(
+        guildPoints[
+          userId
+        ] || 0
+      );
+
+
+    if (
+      action === "add"
+    ) {
+
+      guildPoints[
+        userId
+      ] += amount;
+
+    }
+
+
+    if (
+      action === "remove"
+    ) {
+
+      guildPoints[
+        userId
+      ] =
+        Math.max(
+          0,
+          guildPoints[
+            userId
+          ] - amount
+        );
+
+    }
+
+
+    if (
+      action === "set"
+    ) {
+
+      guildPoints[
+        userId
+      ] = amount;
+
+    }
+
+
+    if (
+      action === "reset"
+    ) {
+
+      guildPoints[
+        userId
+      ] = 0;
+
+    }
+
+
+    savePoints();
+
+
+    return res.redirect(
+      `/dashboard/${guild.id}/points`
+    );
+
+  }
+);
+
+
+// ==========================================
+// MESSAGES PAGE
+// ==========================================
+
+app.get(
+  "/dashboard/:guildId/messages",
+  requireLogin,
+  async (req, res) => {
+
+    const guild =
+      await ensureAllowedGuild(
+        req,
+        res
+      );
+
+    if (!guild) return;
+
+
+    const content = `
+
+${pageHeader(
+  "الرسائل",
+  "أرسل رسالة خاصة لعضو أو رسالة جماعية لكل أعضاء السيرفر.",
+  "MESSAGE CENTER"
+)}
+
+<div class="two-col-panels reveal">
+
+<form
+method="POST"
+action="/dashboard/${guild.id}/messages/dm"
+class="panel-card form-card"
+>
+
+<div class="card-title">
+
+<h2>
+👤 رسالة لعضو
+</h2>
+
+</div>
+
+<div class="field">
+
+<label>
+ID العضو
+</label>
+
+<input
+name="userId"
+placeholder="123456789..."
+required
+>
+
+</div>
+
+<div class="field">
+
+<label>
+الرسالة
+</label>
+
+<textarea
+name="message"
+rows="8"
+placeholder="اكتب الرسالة هنا..."
+required
+></textarea>
+
+</div>
+
+<label class="check-line">
+
+<input
+type="checkbox"
+name="mention"
+value="1"
+checked
+>
+
+إضافة منشن العضو أعلى الرسالة
+
+</label>
+
+<button
+class="primary-btn full"
+type="submit"
+>
+📨 إرسال
+</button>
+
+</form>
+
+
+<form
+method="POST"
+action="/dashboard/${guild.id}/messages/broadcast"
+class="panel-card form-card"
+>
+
+<div class="card-title">
+
+<h2>
+📣 رسالة جماعية
+</h2>
+
+</div>
+
+<div class="warning-box">
+
+الإرسال الجماعي قد يستغرق وقتاً،
+وسيتم الإرسال بتأخير بسيط لتقليل مشاكل Rate Limit.
+
+</div>
+
+<div class="field">
+
+<label>
+الرسالة
+</label>
+
+<textarea
+name="message"
+rows="8"
+placeholder="اكتب الرسالة التي ستصل للجميع..."
+required
+></textarea>
+
+</div>
+
+<label class="check-line">
+
+<input
+type="checkbox"
+name="mention"
+value="1"
+checked
+>
+
+منشن تلقائي لكل شخص في الخاص
+
+</label>
+
+<button
+class="danger-btn full"
+type="submit"
+onclick="return confirm('إرسال الرسالة لكل أعضاء السيرفر؟')"
+>
+📨 إرسال للجميع
+</button>
+
+</form>
+
+</div>
+`;
+
+
+    return res.send(
+      layout({
+        user:
+          req.session.user,
+
+        guild,
+
+        active:
+          "messages",
+
+        content
+      })
+    );
+
+  }
+);
+
+
+// ==========================================
+// SEND DM TO ONE MEMBER
+// ==========================================
+
+app.post(
+  "/dashboard/:guildId/messages/dm",
+  requireLogin,
+  async (req, res) => {
+
+    const guild =
+      await ensureAllowedGuild(
+        req,
+        res
+      );
+
+    if (!guild) return;
+
+
+    const userId =
+      String(
+        req.body.userId || ""
+      ).trim();
+
+
+    const member =
+      await guild.members.fetch(
+        userId
+      )
+        .catch(
+          () => null
+        );
+
+
+    if (!member) {
+
+      return res
+        .status(400)
+        .send(
+          "❌ العضو غير موجود."
+        );
+
+    }
+
+
+    const text =
+      String(
+        req.body.message || ""
+      )
+        .slice(
+          0,
+          1800
+        );
+
+
+    if (!text) {
+
+      return res
+        .status(400)
+        .send(
+          "❌ الرسالة فارغة."
+        );
+
+    }
+
+
+    const prefix =
+      req.body.mention === "1"
+        ?
+        `<@${member.id}>\n\n`
+        :
+        "";
+
+
+    try {
+
+      await member.send(
+        prefix +
+        text
+      );
+
+
+      return res.redirect(
+        `/dashboard/${guild.id}/messages?sent=1`
+      );
+
+
+    } catch {
+
+      return res
+        .status(400)
+        .send(
+          "❌ لم أستطع إرسال الرسالة."
+        );
+
+    }
+
+  }
+);
+
+
+// ==========================================
+// BROADCAST
+// ==========================================
+
+app.post(
+  "/dashboard/:guildId/messages/broadcast",
+  requireLogin,
+  async (req, res) => {
+
+    const guild =
+      await ensureAllowedGuild(
+        req,
+        res
+      );
+
+    if (!guild) return;
+
+
+    const text =
+      String(
+        req.body.message || ""
+      )
+        .slice(
+          0,
+          1800
+        );
+
+
+    if (!text) {
+
+      return res
+        .status(400)
+        .send(
+          "❌ الرسالة فارغة."
+        );
+
+    }
+
+
+    await guild.members.fetch()
+      .catch(
+        () => {}
+      );
+
+
+    let sent = 0;
+    let failed = 0;
+
+
+    for (
+      const member
+      of
+      guild.members.cache.values()
+    ) {
+
+      if (
+        member.user.bot
+      ) {
+
+        continue;
+
+      }
+
+
+      const prefix =
+        req.body.mention === "1"
+          ?
+          `<@${member.id}>\n\n`
+          :
+          "";
+
+
+      try {
+
+        await member.send(
+          prefix +
+          text
+        );
+
+        sent++;
+
+      } catch {
+
+        failed++;
+
+      }
+
+
+      await new Promise(
+        resolve =>
+          setTimeout(
+            resolve,
+            1000
+          )
+      );
+
+    }
+
+
+    return res.send(
+`<!DOCTYPE html>
+
+<html lang="ar" dir="rtl">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1"
+>
+
+<link
+rel="stylesheet"
+href="/style.css"
+>
+
+<title>
+KRX Messages
+</title>
+
+</head>
+
+<body class="dashboard-body">
+
+<div class="center-page">
+
+<div class="empty-card">
+
+<h1>
+✅ انتهى الإرسال
+</h1>
+
+<p>
+
+📨 تم:
+<strong>
+${sent}
+</strong>
+
+<br><br>
+
+❌ فشل:
+<strong>
+${failed}
+</strong>
+
+</p>
+
+<a
+class="primary-btn"
+href="/dashboard/${guild.id}/messages"
+>
+رجوع
+</a>
+
+</div>
+
+</div>
+
+</body>
+
+</html>`
+    );
+
+  }
+);
+
+
+// ==========================================
+// SETTINGS PAGE
+// ==========================================
+
+app.get(
+  "/dashboard/:guildId/settings",
+  requireLogin,
+  async (req, res) => {
+
+    const guild =
+      await ensureAllowedGuild(
+        req,
+        res
+      );
+
+    if (!guild) return;
+
+
+    const cfg =
+      getGuildConfig(
+        guild.id
+      );
+
+
+    const content = `
+
+${pageHeader(
+  "الإعدادات",
+  "ملخص إعدادات KRX في هذا السيرفر.",
+  "SETTINGS"
+)}
+
+<section class="panel-card reveal">
+
+<div class="settings-summary">
+
+<div>
+<span>👮 Staff Roles</span>
+<b>${cfg.staffRoles.length}</b>
+</div>
+
+<div>
+<span>👑 High Roles</span>
+<b>${cfg.highRoles.length}</b>
+</div>
+
+<div>
+<span>🎫 Ticket Category</span>
+<code>
+${esc(
+  cfg.ticketCategory ||
+  "غير محدد"
+)}
+</code>
+</div>
+
+<div>
+<span>⭐ Rating Channel</span>
+<code>
+${esc(
+  cfg.ratingChannel ||
+  "غير محدد"
+)}
+</code>
+</div>
+
+<div>
+<span>🧩 Panels</span>
+<b>${cfg.panels.length}</b>
+</div>
+
+<div>
+<span>⭐ Claim Points</span>
+<b>
+${Number(
+  cfg.claimPoints || 2
+)}
+</b>
+</div>
+
+</div>
+
+</section>
+`;
+
+
+    return res.send(
+      layout({
+        user:
+          req.session.user,
+
+        guild,
+
+        active:
+          "settings",
+
+        content
+      })
+    );
+
+  }
+);
+
+
+// ==========================================
+// LOGOUT
+// ==========================================
+
+app.get(
+  "/logout",
+  (req, res) => {
+
+    req.session.destroy(
+      () => {
+
+        res.redirect("/");
+
+      }
+    );
+
+  }
+);
+
+
+// ==========================================
+// HEALTH
+// ==========================================
+
+app.get(
+  "/health",
+  (req, res) => {
+
+    return res.json({
+
+      status:
+        "ok",
+
+      botReady:
+        client.isReady()
+
+    });
+
+  }
+);
+
+
+// ==========================================
+// START WEBSITE
+// ==========================================
+
+app.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+
+    console.log(
+      `🌐 KRX Dashboard running on port ${PORT}`
+    );
+
+  }
+);
+
+
+};
