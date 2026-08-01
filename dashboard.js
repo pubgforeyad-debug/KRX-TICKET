@@ -468,68 +468,73 @@ ${esc(channel.name)}
 
 "https://cdn.discordapp.com/embed/avatars/0.png";
 
+const nav = [
 
-    const nav = [
+  [
+    "home",
+    "🏠",
+    "الرئيسية",
+    `/dashboard/${guild.id}`
+  ],
 
-      [
-        "home",
-        "🏠",
-        "الرئيسية",
-        `/dashboard/${guild.id}`
-      ],
+  [
+    "staff",
+    "👮",
+    "الرتب",
+    `/dashboard/${guild.id}/staff`
+  ],
 
-      [
-        "staff",
-        "👮",
-        "الرتب",
-        `/dashboard/${guild.id}/staff`
-      ],
+  [
+    "tickets",
+    "🎫",
+    "التذاكر",
+    `/dashboard/${guild.id}/tickets`
+  ],
 
-      [
-        "tickets",
-        "🎫",
-        "التذاكر",
-        `/dashboard/${guild.id}/tickets`
-      ],
+  [
+    "panels",
+    "🧩",
+    "البانلات",
+    `/dashboard/${guild.id}/panels`
+  ],
 
-      [
-        "panels",
-        "🧩",
-        "البانلات",
-        `/dashboard/${guild.id}/panels`
-      ],
+  [
+    "shop",
+    "🛒",
+    "الشوب",
+    `/dashboard/${guild.id}/shop`
+  ],
 
-      [
-        "shop",
-        "🛒",
-        "الشوب",
-        `/dashboard/${guild.id}/shop`
-      ],
+  [
+    "zyro",
+    "💠",
+    "متجر Zyro",
+    `/dashboard/${guild.id}/zyro`
+  ],
 
-      [
-        "points",
-        "⭐",
-        "النقاط",
-        `/dashboard/${guild.id}/points`
-      ],
+  [
+    "points",
+    "⭐",
+    "النقاط",
+    `/dashboard/${guild.id}/points`
+  ],
 
-      [
-        "messages",
-        "📨",
-        "الرسائل",
-        `/dashboard/${guild.id}/messages`
-      ],
+  [
+    "messages",
+    "📨",
+    "الرسائل",
+    `/dashboard/${guild.id}/messages`
+  ],
 
-      [
-        "settings",
-        "⚙️",
-        "الإعدادات",
-        `/dashboard/${guild.id}/settings`
-      ]
+  [
+    "settings",
+    "⚙️",
+    "الإعدادات",
+    `/dashboard/${guild.id}/settings`
+  ]
 
-    ];
-
-
+];
+    
     return `
 <!DOCTYPE html>
 
@@ -7397,6 +7402,838 @@ app.get(
     });
 
   }
+);
+
+
+// ==========================================
+// ZYRO DASHBOARD SYSTEM
+// ==========================================
+
+const zyroSystem =
+  require("./zyro");
+
+
+function getDashboardZyroShop(
+  guildId
+) {
+
+  if (
+    !Array.isArray(
+      zyroSystem.zyroShop[
+        guildId
+      ]
+    )
+  ) {
+
+    zyroSystem.zyroShop[
+      guildId
+    ] = [];
+
+    zyroSystem.saveZyroShop();
+  }
+
+
+  return zyroSystem.zyroShop[
+    guildId
+  ];
+}
+
+
+// ==========================================
+// ZYRO SHOP PAGE
+// ==========================================
+
+app.get(
+  "/dashboard/:guildId/zyro",
+
+  requireLogin,
+
+  async (req, res) => {
+
+    const guild =
+      await ensureAllowedGuild(
+        req,
+        res
+      );
+
+
+    if (!guild) {
+      return;
+    }
+
+
+    await guild.roles.fetch();
+
+
+    const guildShop =
+      getDashboardZyroShop(
+        guild.id
+      );
+
+
+    const ownerMode =
+      String(
+        req.session.user.id
+      ) ===
+      String(
+        BOT_OWNER_ID
+      );
+
+
+    const roles = [
+      ...guild.roles.cache.values()
+    ]
+
+      .filter(
+        role =>
+
+          role.id !== guild.id &&
+
+          !role.managed
+      )
+
+      .sort(
+        (a, b) =>
+          b.position -
+          a.position
+      );
+
+
+    const roleOptionsHtml =
+      roles
+
+        .map(
+          role => `
+
+<option value="${role.id}">
+
+${esc(role.name)}
+
+</option>
+
+`
+        )
+
+        .join("");
+
+
+    const items =
+      guildShop.length
+
+        ?
+
+        guildShop
+
+          .map(
+            (item, index) => {
+
+              const role =
+                item.roleId
+
+                  ?
+
+                  guild.roles.cache.get(
+                    String(
+                      item.roleId
+                    )
+                  )
+
+                  :
+
+                  null;
+
+
+              return `
+
+<div class="item-card">
+
+
+<div>
+
+
+<span class="item-icon">
+
+${esc(
+  item.emoji ||
+  "💠"
+)}
+
+</span>
+
+
+<div>
+
+
+<b>
+
+${esc(
+  item.name ||
+  "منتج Zyro"
+)}
+
+</b>
+
+
+<small>
+
+السعر:
+${Number(
+  item.price ||
+  0
+).toLocaleString("en-US")}
+Zyro
+
+</small>
+
+
+${
+  item.description
+
+    ?
+
+    `<p>${esc(
+      item.description
+    )}</p>`
+
+    :
+
+    ""
+}
+
+
+${
+  role
+
+    ?
+
+    `<small>
+      الرتبة: ${esc(role.name)}
+    </small>`
+
+    :
+
+    `<small>
+      بدون رتبة
+    </small>`
+}
+
+
+</div>
+
+
+</div>
+
+
+${
+  ownerMode
+
+    ?
+
+    `
+
+<div class="item-actions">
+
+
+<form
+
+method="POST"
+
+action="/dashboard/${guild.id}/zyro/shop/${index}/delete"
+
+onsubmit="return confirm('هل تريد حذف المنتج؟')"
+
+>
+
+
+<button
+
+type="submit"
+
+class="danger-action"
+
+>
+
+حذف
+
+</button>
+
+
+</form>
+
+
+</div>
+
+`
+
+    :
+
+    ""
+}
+
+
+</div>
+
+`;
+
+            }
+          )
+
+          .join("")
+
+        :
+
+        `
+
+<div class="empty-inline">
+
+متجر Zyro فارغ حاليًا.
+
+</div>
+
+`;
+
+
+    const ownerControls =
+      ownerMode
+
+        ?
+
+        `
+
+<form
+
+method="POST"
+
+action="/dashboard/${guild.id}/zyro/shop/add"
+
+class="panel-card form-card reveal"
+
+>
+
+
+<div class="two-col">
+
+
+<div class="field">
+
+
+<label>
+
+اسم المنتج
+
+</label>
+
+
+<input
+
+name="name"
+
+placeholder="VIP"
+
+maxlength="100"
+
+required
+
+>
+
+
+</div>
+
+
+
+<div class="field">
+
+
+<label>
+
+السعر بـ Zyro
+
+</label>
+
+
+<input
+
+type="number"
+
+name="price"
+
+min="1"
+
+max="999999999"
+
+placeholder="1000"
+
+required
+
+>
+
+
+</div>
+
+
+</div>
+
+
+
+<div class="two-col">
+
+
+<div class="field">
+
+
+<label>
+
+الإيموجي
+
+</label>
+
+
+<input
+
+name="emoji"
+
+placeholder="💠"
+
+maxlength="50"
+
+value="💠"
+
+>
+
+
+</div>
+
+
+
+<div class="field">
+
+
+<label>
+
+الرتبة بعد الشراء
+
+</label>
+
+
+<select name="roleId">
+
+
+<option value="">
+
+بدون رتبة
+
+</option>
+
+
+${roleOptionsHtml}
+
+
+</select>
+
+
+</div>
+
+
+</div>
+
+
+
+<div class="field">
+
+
+<label>
+
+وصف المنتج
+
+</label>
+
+
+<textarea
+
+name="description"
+
+rows="4"
+
+maxlength="500"
+
+placeholder="اكتب وصف المنتج هنا"
+
+></textarea>
+
+
+</div>
+
+
+
+<button
+
+type="submit"
+
+class="primary-btn full"
+
+>
+
+➕ إضافة منتج Zyro
+
+</button>
+
+
+</form>
+
+`
+
+        :
+
+        `
+
+<section class="panel-card tip reveal">
+
+
+<b>
+
+🔒 وضع العرض فقط
+
+</b>
+
+
+<p>
+
+إضافة وحذف منتجات Zyro متاح لصاحب البوت فقط.
+
+</p>
+
+
+</section>
+
+`;
+
+
+    const content = `
+
+${pageHeader(
+
+  "متجر Zyro",
+
+  "تحكم في منتجات عملة Zyro والأسعار والرتب التي يحصل عليها المشتري.",
+
+  "ZYRO SHOP"
+
+)}
+
+
+${ownerControls}
+
+
+
+<section class="panel-card reveal">
+
+
+<div class="card-title">
+
+
+<div>
+
+
+<span class="eyebrow">
+
+ZYRO PRODUCTS
+
+</span>
+
+
+<h2>
+
+منتجات المتجر
+
+</h2>
+
+
+</div>
+
+
+</div>
+
+
+
+<div class="item-list">
+
+${items}
+
+</div>
+
+
+</section>
+
+
+
+<section class="panel-card tip reveal">
+
+
+<b>
+
+💡 طريقة الشراء في ديسكورد
+
+</b>
+
+
+<p>
+
+العضو يكتب:
+
+<code>
+!zshop
+</code>
+
+ثم يشتري باستخدام:
+
+<code>
+!zbuy 1
+</code>
+
+</p>
+
+
+</section>
+
+`;
+
+
+    return res.send(
+      layout({
+
+        user:
+          req.session.user,
+
+        guild,
+
+        active:
+          "zyro",
+
+        content
+
+      })
+    );
+
+  }
+
+);
+
+
+// ==========================================
+// ADD ZYRO SHOP ITEM
+// OWNER ONLY
+// ==========================================
+
+app.post(
+  "/dashboard/:guildId/zyro/shop/add",
+
+  requireLogin,
+
+  requireBotOwner,
+
+  async (req, res) => {
+
+    const guild =
+      await ensureAllowedGuild(
+        req,
+        res
+      );
+
+
+    if (!guild) {
+      return;
+    }
+
+
+    await guild.roles.fetch();
+
+
+    const guildShop =
+      getDashboardZyroShop(
+        guild.id
+      );
+
+
+    const name =
+      String(
+        req.body.name ||
+        ""
+      )
+
+        .trim()
+
+        .slice(
+          0,
+          100
+        );
+
+
+    const price =
+      Number(
+        req.body.price
+      );
+
+
+    const emoji =
+      String(
+        req.body.emoji ||
+        "💠"
+      )
+
+        .trim()
+
+        .slice(
+          0,
+          50
+        );
+
+
+    const description =
+      String(
+        req.body.description ||
+        ""
+      )
+
+        .trim()
+
+        .slice(
+          0,
+          500
+        );
+
+
+    const roleId =
+      String(
+        req.body.roleId ||
+        ""
+      );
+
+
+    if (
+      !name ||
+
+      !Number.isSafeInteger(
+        price
+      ) ||
+
+      price <= 0
+    ) {
+
+      return res
+        .status(400)
+        .send(
+          "❌ بيانات المنتج غير صحيحة."
+        );
+    }
+
+
+    if (
+      roleId &&
+
+      !guild.roles.cache.has(
+        roleId
+      )
+    ) {
+
+      return res
+        .status(400)
+        .send(
+          "❌ الرتبة المختارة غير موجودة."
+        );
+    }
+
+
+    guildShop.push({
+
+      name,
+
+      price,
+
+      emoji,
+
+      description,
+
+      roleId
+
+    });
+
+
+    zyroSystem.saveZyroShop();
+
+
+    return res.redirect(
+
+      `/dashboard/${guild.id}/zyro`
+
+    );
+
+  }
+
+);
+
+
+// ==========================================
+// DELETE ZYRO SHOP ITEM
+// OWNER ONLY
+// ==========================================
+
+app.post(
+  "/dashboard/:guildId/zyro/shop/:index/delete",
+
+  requireLogin,
+
+  requireBotOwner,
+
+  async (req, res) => {
+
+    const guild =
+      await ensureAllowedGuild(
+        req,
+        res
+      );
+
+
+    if (!guild) {
+      return;
+    }
+
+
+    const guildShop =
+      getDashboardZyroShop(
+        guild.id
+      );
+
+
+    const index =
+      Number(
+        req.params.index
+      );
+
+
+    if (
+      Number.isInteger(index) &&
+      guildShop[index]
+    ) {
+
+      guildShop.splice(
+        index,
+        1
+      );
+
+
+      zyroSystem.saveZyroShop();
+
+    }
+
+
+    return res.redirect(
+
+      `/dashboard/${guild.id}/zyro`
+
+    );
+
+  }
+
 );
 
 
