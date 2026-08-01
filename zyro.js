@@ -3,13 +3,18 @@ const path = require("path");
 const sharp = require("sharp");
 
 const {
-  Events,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  AttachmentBuilder
+  AttachmentBuilder,
+  Events
 } = require("discord.js");
+
+
+// ==========================================
+// ZYRO FILES
+// ==========================================
 
 const ZYRO_FILE =
   path.join(
@@ -17,7 +22,7 @@ const ZYRO_FILE =
     "zyro.json"
   );
 
-const SHOP_FILE =
+const ZYRO_SHOP_FILE =
   path.join(
     __dirname,
     "zyroShop.json"
@@ -33,7 +38,7 @@ const BOT_OWNER_ID =
 
 function loadJSON(
   file,
-  fallback
+  fallback = {}
 ) {
 
   try {
@@ -55,22 +60,25 @@ function loadJSON(
     }
 
 
-    const text =
+    const raw =
       fs.readFileSync(
         file,
         "utf8"
       ).trim();
 
 
-    return text
-      ? JSON.parse(text)
-      : fallback;
+    if (!raw) {
+      return fallback;
+    }
+
+
+    return JSON.parse(raw);
 
 
   } catch (error) {
 
     console.error(
-      `Failed to load ${path.basename(file)}:`,
+      "ZYRO JSON ERROR:",
       error
     );
 
@@ -89,10 +97,9 @@ let zyro =
     {}
   );
 
-
 let zyroShop =
   loadJSON(
-    SHOP_FILE,
+    ZYRO_SHOP_FILE,
     {}
   );
 
@@ -101,15 +108,12 @@ let zyroShop =
 // SAVE
 // ==========================================
 
-function saveJSON(
-  file,
-  value
-) {
+function saveZyro() {
 
   fs.writeFileSync(
-    file,
+    ZYRO_FILE,
     JSON.stringify(
-      value,
+      zyro,
       null,
       2
     )
@@ -117,59 +121,60 @@ function saveJSON(
 }
 
 
-function saveZyro() {
-
-  saveJSON(
-    ZYRO_FILE,
-    zyro
-  );
-}
-
-
 function saveZyroShop() {
 
-  saveJSON(
-    SHOP_FILE,
-    zyroShop
+  fs.writeFileSync(
+    ZYRO_SHOP_FILE,
+    JSON.stringify(
+      zyroShop,
+      null,
+      2
+    )
   );
 }
 
 
 // ==========================================
-// SETTINGS
+// DEFAULT SETTINGS
 // ==========================================
 
-function defaultSettings() {
+function defaultZyroGuild() {
 
   return {
 
-    currencyName:
-      "Zyro",
+    settings: {
 
-    currencySymbol:
-      "💠",
+      currencyName:
+        "Zyro",
 
-    balanceCommand:
-      "z",
+      currencySymbol:
+        "💠",
 
-    transferCommand:
-      "zpay",
+      balanceCommand:
+        "z",
 
-    topCommand:
-      "ztop",
+      transferCommand:
+        "zpay",
 
-    shopCommand:
-      "!zshop",
+      topCommand:
+        "ztop",
 
-    buyCommand:
-      "!zbuy"
+      shopCommand:
+        "!zshop",
+
+      buyCommand:
+        "!zbuy"
+
+    },
+
+    balances: {}
 
   };
 }
 
 
 // ==========================================
-// GUILD DATA
+// GET GUILD DATA
 // ==========================================
 
 function getZyroGuild(
@@ -177,39 +182,27 @@ function getZyroGuild(
 ) {
 
   if (
-    !zyro[guildId] ||
-    typeof zyro[guildId] !==
-      "object"
+    !zyro[guildId]
   ) {
 
-    zyro[guildId] = {
+    zyro[guildId] =
+      defaultZyroGuild();
 
-      settings:
-        defaultSettings(),
-
-      balances:
-        {}
-
-    };
+    saveZyro();
   }
 
 
-  zyro[guildId].settings = {
+  if (
+    !zyro[guildId].settings
+  ) {
 
-    ...defaultSettings(),
-
-    ...(
-      zyro[guildId].settings ||
-      {}
-    )
-
-  };
+    zyro[guildId].settings =
+      defaultZyroGuild().settings;
+  }
 
 
   if (
-    !zyro[guildId].balances ||
-    typeof zyro[guildId].balances !==
-      "object"
+    !zyro[guildId].balances
   ) {
 
     zyro[guildId].balances =
@@ -222,30 +215,7 @@ function getZyroGuild(
 
 
 // ==========================================
-// SHOP DATA
-// ==========================================
-
-function getShop(
-  guildId
-) {
-
-  if (
-    !Array.isArray(
-      zyroShop[guildId]
-    )
-  ) {
-
-    zyroShop[guildId] =
-      [];
-  }
-
-
-  return zyroShop[guildId];
-}
-
-
-// ==========================================
-// BALANCE
+// BALANCE FUNCTIONS
 // ==========================================
 
 function getBalance(
@@ -253,16 +223,15 @@ function getBalance(
   userId
 ) {
 
-  return Number(
-
+  const data =
     getZyroGuild(
       guildId
-    ).balances[userId]
+    );
 
-    ||
 
+  return Number(
+    data.balances[userId] ||
     0
-
   );
 }
 
@@ -281,21 +250,20 @@ function setBalance(
 
   data.balances[userId] =
     Math.max(
-
       0,
-
       Math.floor(
         Number(amount) ||
         0
       )
-
     );
 
 
   saveZyro();
 
 
-  return data.balances[userId];
+  return data.balances[
+    userId
+  ];
 }
 
 
@@ -305,19 +273,18 @@ function addBalance(
   amount
 ) {
 
-  return setBalance(
-
-    guildId,
-
-    userId,
-
+  const current =
     getBalance(
       guildId,
       userId
-    )
-    +
-    Number(amount)
+    );
 
+
+  return setBalance(
+    guildId,
+    userId,
+    current +
+    Number(amount)
   );
 }
 
@@ -328,25 +295,24 @@ function removeBalance(
   amount
 ) {
 
-  return setBalance(
-
-    guildId,
-
-    userId,
-
+  const current =
     getBalance(
       guildId,
       userId
-    )
-    -
-    Number(amount)
+    );
 
+
+  return setBalance(
+    guildId,
+    userId,
+    current -
+    Number(amount)
   );
 }
 
 
 // ==========================================
-// HELPERS
+// MONEY FORMAT
 // ==========================================
 
 function money(
@@ -362,7 +328,11 @@ function money(
 }
 
 
-function isOwner(
+// ==========================================
+// OWNER CHECK
+// ==========================================
+
+function isBotOwner(
   userId
 ) {
 
@@ -370,41 +340,50 @@ function isOwner(
     Boolean(
       BOT_OWNER_ID
     )
-
     &&
-
     userId ===
-      BOT_OWNER_ID
+    BOT_OWNER_ID
   );
 }
 
 
-function makeCode() {
+// ==========================================
+// PENDING OPERATIONS
+// ==========================================
+
+const pendingTransfers =
+  new Map();
+
+const pendingPurchases =
+  new Map();
+
+
+// ==========================================
+// SECURITY CODE
+// ==========================================
+
+function createCode() {
 
   return String(
-
     Math.floor(
-
       1000 +
-
       Math.random() *
       9000
-
     )
-
   );
 }
 
 
 // ==========================================
-// PNG SECURITY IMAGE
+// CREATE SECURITY IMAGE
+// أرقام مرسومة بدون Fonts
 // ==========================================
 
-async function makeCodeImage(
+async function createCodeImage(
   code
 ) {
 
-  const safe =
+  const safeCode =
     String(code)
 
       .replace(
@@ -415,29 +394,126 @@ async function makeCodeImage(
       .slice(
         0,
         4
+      )
+
+      .padEnd(
+        4,
+        "0"
       );
 
 
-  const positions =
-    [
-      120,
-      240,
-      360,
-      480
-    ];
+  const segmentsByDigit = {
+
+    0: [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+      "f"
+    ],
+
+    1: [
+      "b",
+      "c"
+    ],
+
+    2: [
+      "a",
+      "b",
+      "g",
+      "e",
+      "d"
+    ],
+
+    3: [
+      "a",
+      "b",
+      "c",
+      "d",
+      "g"
+    ],
+
+    4: [
+      "f",
+      "g",
+      "b",
+      "c"
+    ],
+
+    5: [
+      "a",
+      "f",
+      "g",
+      "c",
+      "d"
+    ],
+
+    6: [
+      "a",
+      "f",
+      "g",
+      "e",
+      "c",
+      "d"
+    ],
+
+    7: [
+      "a",
+      "b",
+      "c"
+    ],
+
+    8: [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+      "f",
+      "g"
+    ],
+
+    9: [
+      "a",
+      "b",
+      "c",
+      "d",
+      "f",
+      "g"
+    ]
+
+  };
 
 
-  const rotations =
-    [
-      -7,
-      5,
-      -4,
-      7
-    ];
+  const segmentShapes = {
+
+    a:
+      '<rect x="18" y="8" width="74" height="14" rx="7"/>',
+
+    b:
+      '<rect x="88" y="18" width="14" height="70" rx="7"/>',
+
+    c:
+      '<rect x="88" y="92" width="14" height="70" rx="7"/>',
+
+    d:
+      '<rect x="18" y="158" width="74" height="14" rx="7"/>',
+
+    e:
+      '<rect x="8" y="92" width="14" height="70" rx="7"/>',
+
+    f:
+      '<rect x="8" y="18" width="14" height="70" rx="7"/>',
+
+    g:
+      '<rect x="18" y="83" width="74" height="14" rx="7"/>'
+
+  };
 
 
-  const digits =
-    safe
+  const digitsSvg =
+    safeCode
 
       .split("")
 
@@ -448,28 +524,37 @@ async function makeCodeImage(
         ) => {
 
           const x =
-            positions[index];
+            55 +
+            index *
+            135;
 
 
-          const y =
-            index % 2 === 0
-              ? 165
-              : 150;
+          const active =
+            segmentsByDigit[digit]
+            ||
+            segmentsByDigit[0];
+
+
+          const shapes =
+            active
+
+              .map(
+                segment =>
+                  segmentShapes[
+                    segment
+                  ]
+              )
+
+              .join("");
 
 
           return `
-<text
-  x="${x}"
-  y="${y}"
-  text-anchor="middle"
-  font-family="Arial"
-  font-size="90"
-  font-weight="900"
-  fill="#ffffff"
-  transform="rotate(${rotations[index]} ${x} ${y})"
+<g
+  transform="translate(${x}, 34)"
+  fill="#FFFFFF"
 >
-${digit}
-</text>
+  ${shapes}
+</g>
 `;
 
         }
@@ -482,7 +567,8 @@ ${digit}
 <svg
   xmlns="http://www.w3.org/2000/svg"
   width="600"
-  height="260"
+  height="240"
+  viewBox="0 0 600 240"
 >
 
   <defs>
@@ -497,17 +583,17 @@ ${digit}
 
       <stop
         offset="0%"
-        stop-color="#0f172a"
+        stop-color="#0F172A"
       />
 
       <stop
-        offset="50%"
-        stop-color="#312e81"
+        offset="55%"
+        stop-color="#312E81"
       />
 
       <stop
         offset="100%"
-        stop-color="#581c87"
+        stop-color="#581C87"
       />
 
     </linearGradient>
@@ -517,84 +603,37 @@ ${digit}
 
   <rect
     width="600"
-    height="260"
-    rx="30"
+    height="240"
+    rx="28"
     fill="url(#bg)"
   />
 
 
   <circle
-    cx="35"
-    cy="25"
-    r="120"
-    fill="#5865f2"
-    opacity=".20"
+    cx="25"
+    cy="20"
+    r="110"
+    fill="#5865F2"
+    opacity="0.18"
   />
 
 
   <circle
-    cx="570"
-    cy="240"
-    r="130"
-    fill="#a855f7"
-    opacity=".16"
+    cx="580"
+    cy="225"
+    r="120"
+    fill="#A855F7"
+    opacity="0.16"
   />
 
 
-  <text
-    x="300"
-    y="45"
-    text-anchor="middle"
-    font-family="Arial"
-    font-size="20"
-    font-weight="700"
-    fill="#c7d2fe"
-  >
-    KRX • ZYRO SECURITY
-  </text>
-
-
-  <line
-    x1="40"
-    y1="90"
-    x2="560"
-    y2="195"
-    stroke="#ffffff"
-    stroke-width="4"
-    opacity=".13"
-  />
-
-
-  <line
-    x1="35"
-    y1="195"
-    x2="565"
-    y2="85"
-    stroke="#ffffff"
-    stroke-width="3"
-    opacity=".11"
-  />
-
-
-  ${digits}
-
-
-  <text
-    x="300"
-    y="230"
-    text-anchor="middle"
-    font-family="Arial"
-    font-size="15"
-    fill="#a5b4fc"
-  >
-    ENTER THE 4 DIGITS IN CHAT
-  </text>
+  ${digitsSvg}
 
 </svg>
 `;
 
 
-  const png =
+  const pngBuffer =
     await sharp(
       Buffer.from(svg)
     )
@@ -605,60 +644,15 @@ ${digit}
 
 
   return new AttachmentBuilder(
-
-    png,
-
+    pngBuffer,
     {
       name:
         "zyro-code.png"
     }
-
   );
 }
 
 
-// ==========================================
-// PENDING OPERATIONS
-// ==========================================
-
-const pendingTransfers =
-  new Map();
-
-
-const pendingPurchases =
-  new Map();
-
-
-function expirePending(
-  map,
-  userId,
-  operationId
-) {
-
-  setTimeout(
-    () => {
-
-      const current =
-        map.get(
-          userId
-        );
-
-
-      if (
-        current?.id ===
-        operationId
-      ) {
-
-        map.delete(
-          userId
-        );
-      }
-
-    },
-
-    120000
-  );
-}
 // ==========================================
 // REGISTER ZYRO
 // ==========================================
@@ -666,10 +660,6 @@ function expirePending(
 function registerZyro(
   client
 ) {
-
-  // ========================================
-  // MESSAGE COMMANDS
-  // ========================================
 
   client.on(
     Events.MessageCreate,
@@ -680,6 +670,7 @@ function registerZyro(
         message.author.bot ||
         !message.guild
       ) {
+
         return;
       }
 
@@ -702,18 +693,14 @@ function registerZyro(
         content.split(/\s+/);
 
 
-      const command =
-        args[0]?.toLowerCase();
-
-
       // ====================================
-      // SHOW BALANCE
+      // BALANCE
       // z
       // z @user
       // ====================================
 
       if (
-        command ===
+        args[0].toLowerCase() ===
         settings.balanceCommand.toLowerCase()
       ) {
 
@@ -730,21 +717,18 @@ function registerZyro(
           );
 
 
-        return message.reply({
+        const embed =
+          new EmbedBuilder()
 
-          embeds: [
+            .setColor(
+              "#5865F2"
+            )
 
-            new EmbedBuilder()
+            .setTitle(
+              `${settings.currencySymbol} ${settings.currencyName}`
+            )
 
-              .setColor(
-                "#5865F2"
-              )
-
-              .setTitle(
-                `${settings.currencySymbol} ${settings.currencyName}`
-              )
-
-              .setDescription(
+            .setDescription(
 `${target.id === message.author.id
   ? "رصيدك الحالي"
   : `رصيد ${target}`}
@@ -753,39 +737,41 @@ function registerZyro(
   balance,
   settings
 )}**`
-              )
+            )
 
-              .setThumbnail(
-                target.displayAvatarURL({
-                  size: 128
-                })
-              )
-
-              .setFooter({
-                text:
-                  "KRX • Zyro Economy"
+            .setThumbnail(
+              target.displayAvatarURL({
+                size:
+                  128
               })
+            )
 
-              .setTimestamp()
+            .setFooter({
+              text:
+                "KRX • Zyro Economy"
+            })
 
+            .setTimestamp();
+
+
+        return message.reply({
+          embeds: [
+            embed
           ]
-
         });
       }
-
-
-      // ====================================
-      // OWNER ADD
+            // ====================================
+      // OWNER ADD ZYRO
       // +zyro @user 1000
       // ====================================
 
       if (
-        command ===
+        args[0].toLowerCase() ===
         "+zyro"
       ) {
 
         if (
-          !isOwner(
+          !isBotOwner(
             message.author.id
           )
         ) {
@@ -849,17 +835,17 @@ ${member}
 
 
       // ====================================
-      // OWNER REMOVE
+      // OWNER REMOVE ZYRO
       // -zyro @user 500
       // ====================================
 
       if (
-        command ===
+        args[0].toLowerCase() ===
         "-zyro"
       ) {
 
         if (
-          !isOwner(
+          !isBotOwner(
             message.author.id
           )
         ) {
@@ -923,17 +909,17 @@ ${member}
 
 
       // ====================================
-      // OWNER SET
+      // OWNER SET ZYRO
       // !setzyro @user 5000
       // ====================================
 
       if (
-        command ===
+        args[0].toLowerCase() ===
         "!setzyro"
       ) {
 
         if (
-          !isOwner(
+          !isBotOwner(
             message.author.id
           )
         ) {
@@ -988,17 +974,17 @@ ${member}
 
 
       // ====================================
-      // OWNER RESET
+      // OWNER RESET ZYRO
       // !resetzyro @user
       // ====================================
 
       if (
-        command ===
+        args[0].toLowerCase() ===
         "!resetzyro"
       ) {
 
         if (
-          !isOwner(
+          !isBotOwner(
             message.author.id
           )
         ) {
@@ -1035,12 +1021,12 @@ ${member}
 
 
       // ====================================
-      // TOP
+      // TOP ZYRO
       // ztop
       // ====================================
 
       if (
-        command ===
+        args[0].toLowerCase() ===
         settings.topCommand.toLowerCase()
       ) {
 
@@ -1143,7 +1129,7 @@ ${member}
       // ====================================
 
       if (
-        command ===
+        args[0].toLowerCase() ===
         settings.transferCommand.toLowerCase()
       ) {
 
@@ -1395,10 +1381,28 @@ ${money(
         });
 
 
-        expirePending(
-          pendingTransfers,
-          message.author.id,
-          operationId
+        setTimeout(
+          () => {
+
+            const current =
+              pendingTransfers.get(
+                message.author.id
+              );
+
+
+            if (
+              current?.id ===
+              operationId
+            ) {
+
+              pendingTransfers.delete(
+                message.author.id
+              );
+            }
+
+          },
+
+          120000
         );
 
 
@@ -1411,7 +1415,7 @@ ${money(
 
 
   // ========================================
-  // TRANSFER INTERACTIONS
+  // TRANSFER BUTTONS
   // ========================================
 
   client.on(
@@ -1423,6 +1427,7 @@ ${money(
         !interaction.isButton() ||
         !interaction.guild
       ) {
+
         return;
       }
 
@@ -1496,9 +1501,7 @@ ${money(
 
         });
       }
-
-
-      // ====================================
+            // ====================================
       // CONFIRM TRANSFER
       // ====================================
 
@@ -1522,8 +1525,7 @@ ${money(
 
         if (
           !pending ||
-          pending.id !==
-            operationId
+          pending.id !== operationId
         ) {
 
           return interaction.reply({
@@ -1599,7 +1601,7 @@ ${money(
 
 
         const code =
-          makeCode();
+          createCode();
 
 
         pending.code =
@@ -1611,7 +1613,7 @@ ${money(
 
 
         const image =
-          await makeCodeImage(
+          await createCodeImage(
             code
           );
 
@@ -1799,7 +1801,7 @@ ${money(
           );
 
 
-          const guildSettings =
+          const settings =
             getZyroGuild(
               interaction.guild.id
             ).settings;
@@ -1834,7 +1836,7 @@ ${money(
 
 **${money(
   current.amount,
-  guildSettings
+  settings
 )}**
 
 إلى:
@@ -1843,7 +1845,7 @@ ${money(
 💰 رصيدك الآن:
 **${money(
   newSenderBalance,
-  guildSettings
+  settings
 )}**`
                 )
 
@@ -1869,7 +1871,9 @@ ${money(
               );
 
 
-          if (receiver) {
+          if (
+            receiver
+          ) {
 
             const newReceiverBalance =
               getBalance(
@@ -1897,13 +1901,13 @@ ${money(
 
 **${money(
   current.amount,
-  guildSettings
+  settings
 )}**
 
 💰 رصيدك الآن:
 **${money(
   newReceiverBalance,
-  guildSettings
+  settings
 )}**`
                   )
 
@@ -1972,7 +1976,9 @@ ${money(
     }
 
   );
-    // ========================================
+
+
+  // ========================================
   // ZYRO SHOP COMMANDS
   // ========================================
 
@@ -1985,6 +1991,7 @@ ${money(
         message.author.bot ||
         !message.guild
       ) {
+
         return;
       }
 
@@ -1999,10 +2006,26 @@ ${money(
         data.settings;
 
 
-      const shop =
-        getShop(
+      if (
+        !Array.isArray(
+          zyroShop[
+            message.guild.id
+          ]
+        )
+      ) {
+
+        zyroShop[
           message.guild.id
-        );
+        ] = [];
+
+        saveZyroShop();
+      }
+
+
+      const shop =
+        zyroShop[
+          message.guild.id
+        ];
 
 
       const content =
@@ -2044,11 +2067,6 @@ ${money(
                 .setDescription(
                   "❌ المتجر فارغ حاليًا."
                 )
-
-                .setFooter({
-                  text:
-                    "KRX • Zyro Shop"
-                })
 
             ]
 
@@ -2153,17 +2171,13 @@ ${money(
         )
       ) {
 
-        const numberText =
-          content
-            .slice(
-              settings.buyCommand.length
-            )
-            .trim();
-
-
         const productNumber =
           Number(
-            numberText
+            content
+              .slice(
+                settings.buyCommand.length
+              )
+              .trim()
           );
 
 
@@ -2181,9 +2195,7 @@ ${money(
           !Number.isInteger(
             productNumber
           ) ||
-
           productNumber <= 0 ||
-
           !product
         ) {
 
@@ -2203,7 +2215,6 @@ ${money(
           !Number.isSafeInteger(
             price
           ) ||
-
           price <= 0
         ) {
 
@@ -2259,7 +2270,7 @@ ${money(
 ${money(
   price - balance,
   settings
-)}`
+)}**`
                 )
 
             ]
@@ -2423,10 +2434,28 @@ ${money(
         });
 
 
-        expirePending(
-          pendingPurchases,
-          message.author.id,
-          operationId
+        setTimeout(
+          () => {
+
+            const current =
+              pendingPurchases.get(
+                message.author.id
+              );
+
+
+            if (
+              current?.id ===
+              operationId
+            ) {
+
+              pendingPurchases.delete(
+                message.author.id
+              );
+            }
+
+          },
+
+          120000
         );
 
 
@@ -2436,10 +2465,8 @@ ${money(
     }
 
   );
-
-
-  // ========================================
-  // SHOP INTERACTIONS
+    // ========================================
+  // SHOP BUTTONS
   // ========================================
 
   client.on(
@@ -2451,6 +2478,7 @@ ${money(
         !interaction.isButton() ||
         !interaction.guild
       ) {
+
         return;
       }
 
@@ -2627,7 +2655,7 @@ ${money(
 
 
         const code =
-          makeCode();
+          createCode();
 
 
         pending.code =
@@ -2639,7 +2667,7 @@ ${money(
 
 
         const image =
-          await makeCodeImage(
+          await createCodeImage(
             code
           );
 
@@ -2777,9 +2805,15 @@ ${money(
 
 
           const shop =
-            getShop(
-              interaction.guild.id
-            );
+            Array.isArray(
+              zyroShop[
+                interaction.guild.id
+              ]
+            )
+              ? zyroShop[
+                  interaction.guild.id
+                ]
+              : [];
 
 
           const product =
