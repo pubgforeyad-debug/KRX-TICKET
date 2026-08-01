@@ -1,51 +1,79 @@
 const fs = require("fs");
 const path = require("path");
+const sharp = require("sharp");
 
 const {
+  Events,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  AttachmentBuilder,
-  Events
+  AttachmentBuilder
 } = require("discord.js");
 
+const ZYRO_FILE =
+  path.join(
+    __dirname,
+    "zyro.json"
+  );
 
-// ==========================================
-// ZYRO FILES
-// ==========================================
+const SHOP_FILE =
+  path.join(
+    __dirname,
+    "zyroShop.json"
+  );
 
-const ZYRO_FILE = path.join(__dirname, "zyro.json");
-const ZYRO_SHOP_FILE = path.join(__dirname, "zyroShop.json");
-
-const BOT_OWNER_ID = process.env.BOT_OWNER_ID;
+const BOT_OWNER_ID =
+  process.env.BOT_OWNER_ID;
 
 
 // ==========================================
 // LOAD JSON
 // ==========================================
 
-function loadJSON(file, fallback = {}) {
+function loadJSON(
+  file,
+  fallback
+) {
+
   try {
-    if (!fs.existsSync(file)) {
+
+    if (
+      !fs.existsSync(file)
+    ) {
+
       fs.writeFileSync(
         file,
-        JSON.stringify(fallback, null, 2)
+        JSON.stringify(
+          fallback,
+          null,
+          2
+        )
       );
 
       return fallback;
     }
 
-    const raw = fs.readFileSync(file, "utf8").trim();
 
-    if (!raw) {
-      return fallback;
-    }
+    const text =
+      fs.readFileSync(
+        file,
+        "utf8"
+      ).trim();
 
-    return JSON.parse(raw);
+
+    return text
+      ? JSON.parse(text)
+      : fallback;
+
 
   } catch (error) {
-    console.error("ZYRO JSON ERROR:", error);
+
+    console.error(
+      `Failed to load ${path.basename(file)}:`,
+      error
+    );
+
     return fallback;
   }
 }
@@ -55,143 +83,537 @@ function loadJSON(file, fallback = {}) {
 // DATA
 // ==========================================
 
-let zyro = loadJSON(ZYRO_FILE, {});
-let zyroShop = loadJSON(ZYRO_SHOP_FILE, {});
+let zyro =
+  loadJSON(
+    ZYRO_FILE,
+    {}
+  );
+
+
+let zyroShop =
+  loadJSON(
+    SHOP_FILE,
+    {}
+  );
 
 
 // ==========================================
 // SAVE
 // ==========================================
 
-function saveZyro() {
+function saveJSON(
+  file,
+  value
+) {
+
   fs.writeFileSync(
+    file,
+    JSON.stringify(
+      value,
+      null,
+      2
+    )
+  );
+}
+
+
+function saveZyro() {
+
+  saveJSON(
     ZYRO_FILE,
-    JSON.stringify(zyro, null, 2)
+    zyro
   );
 }
 
 
 function saveZyroShop() {
-  fs.writeFileSync(
-    ZYRO_SHOP_FILE,
-    JSON.stringify(zyroShop, null, 2)
+
+  saveJSON(
+    SHOP_FILE,
+    zyroShop
   );
 }
 
 
 // ==========================================
-// DEFAULT SETTINGS
+// SETTINGS
 // ==========================================
 
-function defaultZyroGuild() {
+function defaultSettings() {
+
   return {
-    settings: {
-      currencyName: "Zyro",
-      currencySymbol: "💠",
 
-      balanceCommand: "z",
-      transferCommand: "zpay",
-      topCommand: "ztop",
+    currencyName:
+      "Zyro",
 
-      shopCommand: "!zshop",
-      buyCommand: "!zbuy"
-    },
+    currencySymbol:
+      "💠",
 
-    balances: {}
+    balanceCommand:
+      "z",
+
+    transferCommand:
+      "zpay",
+
+    topCommand:
+      "ztop",
+
+    shopCommand:
+      "!zshop",
+
+    buyCommand:
+      "!zbuy"
+
   };
 }
 
 
 // ==========================================
-// GET GUILD DATA
+// GUILD DATA
 // ==========================================
 
-function getZyroGuild(guildId) {
-  if (!zyro[guildId]) {
-    zyro[guildId] = defaultZyroGuild();
-    saveZyro();
+function getZyroGuild(
+  guildId
+) {
+
+  if (
+    !zyro[guildId] ||
+    typeof zyro[guildId] !==
+      "object"
+  ) {
+
+    zyro[guildId] = {
+
+      settings:
+        defaultSettings(),
+
+      balances:
+        {}
+
+    };
   }
 
-  if (!zyro[guildId].settings) {
-    zyro[guildId].settings =
-      defaultZyroGuild().settings;
+
+  zyro[guildId].settings = {
+
+    ...defaultSettings(),
+
+    ...(
+      zyro[guildId].settings ||
+      {}
+    )
+
+  };
+
+
+  if (
+    !zyro[guildId].balances ||
+    typeof zyro[guildId].balances !==
+      "object"
+  ) {
+
+    zyro[guildId].balances =
+      {};
   }
 
-  if (!zyro[guildId].balances) {
-    zyro[guildId].balances = {};
-  }
 
   return zyro[guildId];
 }
 
 
 // ==========================================
-// BALANCE FUNCTIONS
+// SHOP DATA
 // ==========================================
 
-function getBalance(guildId, userId) {
-  const data = getZyroGuild(guildId);
+function getShop(
+  guildId
+) {
+
+  if (
+    !Array.isArray(
+      zyroShop[guildId]
+    )
+  ) {
+
+    zyroShop[guildId] =
+      [];
+  }
+
+
+  return zyroShop[guildId];
+}
+
+
+// ==========================================
+// BALANCE
+// ==========================================
+
+function getBalance(
+  guildId,
+  userId
+) {
 
   return Number(
-    data.balances[userId] || 0
+
+    getZyroGuild(
+      guildId
+    ).balances[userId]
+
+    ||
+
+    0
+
   );
 }
 
 
-function setBalance(guildId, userId, amount) {
-  const data = getZyroGuild(guildId);
+function setBalance(
+  guildId,
+  userId,
+  amount
+) {
 
-  data.balances[userId] = Math.max(
-    0,
-    Math.floor(Number(amount) || 0)
-  );
+  const data =
+    getZyroGuild(
+      guildId
+    );
+
+
+  data.balances[userId] =
+    Math.max(
+
+      0,
+
+      Math.floor(
+        Number(amount) ||
+        0
+      )
+
+    );
+
 
   saveZyro();
+
 
   return data.balances[userId];
 }
 
 
-function addBalance(guildId, userId, amount) {
-  const current = getBalance(guildId, userId);
+function addBalance(
+  guildId,
+  userId,
+  amount
+) {
 
   return setBalance(
+
     guildId,
+
     userId,
-    current + Number(amount)
+
+    getBalance(
+      guildId,
+      userId
+    )
+    +
+    Number(amount)
+
   );
 }
 
 
-function removeBalance(guildId, userId, amount) {
-  const current = getBalance(guildId, userId);
+function removeBalance(
+  guildId,
+  userId,
+  amount
+) {
 
   return setBalance(
+
     guildId,
+
     userId,
-    current - Number(amount)
+
+    getBalance(
+      guildId,
+      userId
+    )
+    -
+    Number(amount)
+
   );
 }
 
 
 // ==========================================
-// MONEY FORMAT
+// HELPERS
 // ==========================================
 
-function money(amount, settings) {
-  return `${settings.currencySymbol} ${Number(
-    amount
-  ).toLocaleString("en-US")} ${settings.currencyName}`;
+function money(
+  amount,
+  settings
+) {
+
+  return (
+    `${settings.currencySymbol} ` +
+    `${Number(amount).toLocaleString("en-US")} ` +
+    `${settings.currencyName}`
+  );
+}
+
+
+function isOwner(
+  userId
+) {
+
+  return (
+    Boolean(
+      BOT_OWNER_ID
+    )
+
+    &&
+
+    userId ===
+      BOT_OWNER_ID
+  );
+}
+
+
+function makeCode() {
+
+  return String(
+
+    Math.floor(
+
+      1000 +
+
+      Math.random() *
+      9000
+
+    )
+
+  );
 }
 
 
 // ==========================================
-// OWNER CHECK
+// PNG SECURITY IMAGE
 // ==========================================
 
-function isBotOwner(userId) {
-  return Boolean(BOT_OWNER_ID) &&
-    userId === BOT_OWNER_ID;
+async function makeCodeImage(
+  code
+) {
+
+  const safe =
+    String(code)
+
+      .replace(
+        /\D/g,
+        ""
+      )
+
+      .slice(
+        0,
+        4
+      );
+
+
+  const positions =
+    [
+      120,
+      240,
+      360,
+      480
+    ];
+
+
+  const rotations =
+    [
+      -7,
+      5,
+      -4,
+      7
+    ];
+
+
+  const digits =
+    safe
+
+      .split("")
+
+      .map(
+        (
+          digit,
+          index
+        ) => {
+
+          const x =
+            positions[index];
+
+
+          const y =
+            index % 2 === 0
+              ? 165
+              : 150;
+
+
+          return `
+<text
+  x="${x}"
+  y="${y}"
+  text-anchor="middle"
+  font-family="Arial"
+  font-size="90"
+  font-weight="900"
+  fill="#ffffff"
+  transform="rotate(${rotations[index]} ${x} ${y})"
+>
+${digit}
+</text>
+`;
+
+        }
+      )
+
+      .join("");
+
+
+  const svg = `
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="600"
+  height="260"
+>
+
+  <defs>
+
+    <linearGradient
+      id="bg"
+      x1="0"
+      y1="0"
+      x2="1"
+      y2="1"
+    >
+
+      <stop
+        offset="0%"
+        stop-color="#0f172a"
+      />
+
+      <stop
+        offset="50%"
+        stop-color="#312e81"
+      />
+
+      <stop
+        offset="100%"
+        stop-color="#581c87"
+      />
+
+    </linearGradient>
+
+  </defs>
+
+
+  <rect
+    width="600"
+    height="260"
+    rx="30"
+    fill="url(#bg)"
+  />
+
+
+  <circle
+    cx="35"
+    cy="25"
+    r="120"
+    fill="#5865f2"
+    opacity=".20"
+  />
+
+
+  <circle
+    cx="570"
+    cy="240"
+    r="130"
+    fill="#a855f7"
+    opacity=".16"
+  />
+
+
+  <text
+    x="300"
+    y="45"
+    text-anchor="middle"
+    font-family="Arial"
+    font-size="20"
+    font-weight="700"
+    fill="#c7d2fe"
+  >
+    KRX • ZYRO SECURITY
+  </text>
+
+
+  <line
+    x1="40"
+    y1="90"
+    x2="560"
+    y2="195"
+    stroke="#ffffff"
+    stroke-width="4"
+    opacity=".13"
+  />
+
+
+  <line
+    x1="35"
+    y1="195"
+    x2="565"
+    y2="85"
+    stroke="#ffffff"
+    stroke-width="3"
+    opacity=".11"
+  />
+
+
+  ${digits}
+
+
+  <text
+    x="300"
+    y="230"
+    text-anchor="middle"
+    font-family="Arial"
+    font-size="15"
+    fill="#a5b4fc"
+  >
+    ENTER THE 4 DIGITS IN CHAT
+  </text>
+
+</svg>
+`;
+
+
+  const png =
+    await sharp(
+      Buffer.from(svg)
+    )
+
+      .png()
+
+      .toBuffer();
+
+
+  return new AttachmentBuilder(
+
+    png,
+
+    {
+      name:
+        "zyro-code.png"
+    }
+
+  );
 }
 
 
@@ -199,142 +621,59 @@ function isBotOwner(userId) {
 // PENDING OPERATIONS
 // ==========================================
 
-const pendingTransfers = new Map();
-const pendingPurchases = new Map();
+const pendingTransfers =
+  new Map();
 
 
-// ==========================================
-// SECURITY CODE
-// ==========================================
+const pendingPurchases =
+  new Map();
 
-function createCode() {
-  return String(
-    Math.floor(
-      1000 + Math.random() * 9000
-    )
+
+function expirePending(
+  map,
+  userId,
+  operationId
+) {
+
+  setTimeout(
+    () => {
+
+      const current =
+        map.get(
+          userId
+        );
+
+
+      if (
+        current?.id ===
+        operationId
+      ) {
+
+        map.delete(
+          userId
+        );
+      }
+
+    },
+
+    120000
   );
 }
-
-
-// ==========================================
-// CREATE SECURITY IMAGE
-// ==========================================
-
-function createCodeImage(code) {
-  const rotations = [-8, 5, -4, 7];
-
-  const numbers = code
-    .split("")
-    .map((number, index) => {
-      const x = 68 + index * 70;
-      const y = index % 2 === 0 ? 108 : 98;
-
-      return `
-<text
-x="${x}"
-y="${y}"
-font-size="58"
-font-weight="900"
-font-family="Arial"
-fill="white"
-transform="rotate(${rotations[index]} ${x} ${y})"
->${number}</text>`;
-    })
-    .join("");
-
-
-  const svg = `
-<svg
-xmlns="http://www.w3.org/2000/svg"
-width="360"
-height="160"
-viewBox="0 0 360 160"
->
-
-<defs>
-<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0%" stop-color="#111827"/>
-<stop offset="100%" stop-color="#312e81"/>
-</linearGradient>
-</defs>
-
-<rect
-width="360"
-height="160"
-rx="24"
-fill="url(#bg)"
-/>
-
-<circle
-cx="35"
-cy="30"
-r="70"
-fill="#5865F2"
-opacity="0.18"
-/>
-
-<circle
-cx="330"
-cy="145"
-r="80"
-fill="#8B5CF6"
-opacity="0.15"
-/>
-
-<line
-x1="20"
-y1="45"
-x2="340"
-y2="125"
-stroke="white"
-stroke-opacity="0.12"
-stroke-width="3"
-/>
-
-<line
-x1="15"
-y1="125"
-x2="345"
-y2="38"
-stroke="white"
-stroke-opacity="0.10"
-stroke-width="2"
-/>
-
-${numbers}
-
-<text
-x="180"
-y="145"
-text-anchor="middle"
-font-size="12"
-font-family="Arial"
-fill="#A5B4FC"
->
-KRX • ZYRO SECURITY
-</text>
-
-</svg>
-`;
-
-
-  return new AttachmentBuilder(
-    Buffer.from(svg),
-    {
-      name: "zyro-code.svg"
-    }
-  );
-}
-
-
 // ==========================================
 // REGISTER ZYRO
 // ==========================================
 
-function registerZyro(client) {
+function registerZyro(
+  client
+) {
+
+  // ========================================
+  // MESSAGE COMMANDS
+  // ========================================
 
   client.on(
     Events.MessageCreate,
+
     async message => {
 
       if (
@@ -345,51 +684,67 @@ function registerZyro(client) {
       }
 
 
-      const data = getZyroGuild(
-        message.guild.id
-      );
+      const data =
+        getZyroGuild(
+          message.guild.id
+        );
 
-      const settings = data.settings;
+
+      const settings =
+        data.settings;
+
 
       const content =
         message.content.trim();
+
 
       const args =
         content.split(/\s+/);
 
 
+      const command =
+        args[0]?.toLowerCase();
+
+
       // ====================================
-      // BALANCE
+      // SHOW BALANCE
       // z
       // z @user
       // ====================================
 
       if (
-        args[0].toLowerCase() ===
+        command ===
         settings.balanceCommand.toLowerCase()
       ) {
 
         const target =
-          message.mentions.users.first() ||
+          message.mentions.users.first()
+          ||
           message.author;
 
 
-        const balance = getBalance(
-          message.guild.id,
-          target.id
-        );
+        const balance =
+          getBalance(
+            message.guild.id,
+            target.id
+          );
 
 
-        const embed =
-          new EmbedBuilder()
+        return message.reply({
 
-            .setColor("#5865F2")
+          embeds: [
 
-            .setTitle(
-              `${settings.currencySymbol} ${settings.currencyName}`
-            )
+            new EmbedBuilder()
 
-            .setDescription(
+              .setColor(
+                "#5865F2"
+              )
+
+              .setTitle(
+                `${settings.currencySymbol} ${settings.currencyName}`
+              )
+
+              .setDescription(
 `${target.id === message.author.id
   ? "رصيدك الحالي"
   : `رصيد ${target}`}
@@ -398,38 +753,43 @@ function registerZyro(client) {
   balance,
   settings
 )}**`
-            )
+              )
 
-            .setThumbnail(
-              target.displayAvatarURL({
-                size: 128
+              .setThumbnail(
+                target.displayAvatarURL({
+                  size: 128
+                })
+              )
+
+              .setFooter({
+                text:
+                  "KRX • Zyro Economy"
               })
-            )
 
-            .setFooter({
-              text: "KRX • Zyro Economy"
-            })
+              .setTimestamp()
 
-            .setTimestamp();
+          ]
 
-
-        return message.reply({
-          embeds: [embed]
         });
       }
 
 
       // ====================================
-      // OWNER ADD ZYRO
+      // OWNER ADD
       // +zyro @user 1000
       // ====================================
 
       if (
-        args[0].toLowerCase() ===
+        command ===
         "+zyro"
       ) {
 
-        if (!isBotOwner(message.author.id)) {
+        if (
+          !isOwner(
+            message.author.id
+          )
+        ) {
+
           return message.reply(
             "❌ هذا الأمر لصاحب البوت فقط."
           );
@@ -439,13 +799,18 @@ function registerZyro(client) {
         const member =
           message.mentions.members.first();
 
+
         const amount =
-          Number(args[2]);
+          Number(
+            args[2]
+          );
 
 
         if (
           !member ||
-          !Number.isSafeInteger(amount) ||
+          !Number.isSafeInteger(
+            amount
+          ) ||
           amount <= 0
         ) {
 
@@ -455,18 +820,24 @@ function registerZyro(client) {
         }
 
 
-        const newBalance = addBalance(
-          message.guild.id,
-          member.id,
-          amount
-        );
+        const newBalance =
+          addBalance(
+            message.guild.id,
+            member.id,
+            amount
+          );
 
 
         return message.reply(
-`✅ تمت إضافة **${money(
+`✅ تمت إضافة:
+
+**${money(
   amount,
   settings
-)}** إلى ${member}.
+)}**
+
+إلى:
+${member}
 
 💰 رصيده الآن:
 **${money(
@@ -478,16 +849,21 @@ function registerZyro(client) {
 
 
       // ====================================
-      // OWNER REMOVE ZYRO
+      // OWNER REMOVE
       // -zyro @user 500
       // ====================================
 
       if (
-        args[0].toLowerCase() ===
+        command ===
         "-zyro"
       ) {
 
-        if (!isBotOwner(message.author.id)) {
+        if (
+          !isOwner(
+            message.author.id
+          )
+        ) {
+
           return message.reply(
             "❌ هذا الأمر لصاحب البوت فقط."
           );
@@ -497,13 +873,18 @@ function registerZyro(client) {
         const member =
           message.mentions.members.first();
 
+
         const amount =
-          Number(args[2]);
+          Number(
+            args[2]
+          );
 
 
         if (
           !member ||
-          !Number.isSafeInteger(amount) ||
+          !Number.isSafeInteger(
+            amount
+          ) ||
           amount <= 0
         ) {
 
@@ -513,18 +894,24 @@ function registerZyro(client) {
         }
 
 
-        const newBalance = removeBalance(
-          message.guild.id,
-          member.id,
-          amount
-        );
+        const newBalance =
+          removeBalance(
+            message.guild.id,
+            member.id,
+            amount
+          );
 
 
         return message.reply(
-`✅ تم خصم **${money(
+`✅ تم خصم:
+
+**${money(
   amount,
   settings
-)}** من ${member}.
+)}**
+
+من:
+${member}
 
 💰 رصيده الآن:
 **${money(
@@ -536,16 +923,21 @@ function registerZyro(client) {
 
 
       // ====================================
-      // OWNER SET ZYRO
+      // OWNER SET
       // !setzyro @user 5000
       // ====================================
 
       if (
-        args[0].toLowerCase() ===
+        command ===
         "!setzyro"
       ) {
 
-        if (!isBotOwner(message.author.id)) {
+        if (
+          !isOwner(
+            message.author.id
+          )
+        ) {
+
           return message.reply(
             "❌ هذا الأمر لصاحب البوت فقط."
           );
@@ -555,13 +947,18 @@ function registerZyro(client) {
         const member =
           message.mentions.members.first();
 
+
         const amount =
-          Number(args[2]);
+          Number(
+            args[2]
+          );
 
 
         if (
           !member ||
-          !Number.isSafeInteger(amount) ||
+          !Number.isSafeInteger(
+            amount
+          ) ||
           amount < 0
         ) {
 
@@ -571,11 +968,12 @@ function registerZyro(client) {
         }
 
 
-        const newBalance = setBalance(
-          message.guild.id,
-          member.id,
-          amount
-        );
+        const newBalance =
+          setBalance(
+            message.guild.id,
+            member.id,
+            amount
+          );
 
 
         return message.reply(
@@ -587,36 +985,48 @@ function registerZyro(client) {
 )}**`
         );
       }
-            // ====================================
-      // OWNER RESET ZYRO
+
+
+      // ====================================
+      // OWNER RESET
       // !resetzyro @user
       // ====================================
 
       if (
-        args[0].toLowerCase() ===
+        command ===
         "!resetzyro"
       ) {
 
-        if (!isBotOwner(message.author.id)) {
+        if (
+          !isOwner(
+            message.author.id
+          )
+        ) {
+
           return message.reply(
             "❌ هذا الأمر لصاحب البوت فقط."
           );
         }
 
+
         const member =
           message.mentions.members.first();
 
+
         if (!member) {
+
           return message.reply(
             "❌ الاستخدام: `!resetzyro @user`"
           );
         }
+
 
         setBalance(
           message.guild.id,
           member.id,
           0
         );
+
 
         return message.reply(
           `✅ تم تصفير رصيد ${member}.`
@@ -625,102 +1035,142 @@ function registerZyro(client) {
 
 
       // ====================================
-      // TOP ZYRO
+      // TOP
       // ztop
       // ====================================
 
       if (
-        args[0].toLowerCase() ===
+        command ===
         settings.topCommand.toLowerCase()
       ) {
 
-        const top = Object.entries(
-          data.balances
-        )
-          .sort(
-            (a, b) =>
-              Number(b[1]) - Number(a[1])
+        const top =
+          Object.entries(
+            data.balances
           )
-          .slice(0, 10);
+
+            .sort(
+              (a, b) =>
+                Number(b[1]) -
+                Number(a[1])
+            )
+
+            .slice(
+              0,
+              10
+            );
 
 
-        if (!top.length) {
+        if (
+          !top.length
+        ) {
+
           return message.reply(
-            `❌ لا توجد أرصدة ${settings.currencyName} حتى الآن.`
+            "❌ لا توجد أرصدة حتى الآن."
           );
         }
 
 
-        const description = top
-          .map(
-            ([userId, balance], index) => {
+        const description =
+          top
 
-              let medal = `#${index + 1}`;
+            .map(
+              (
+                [userId, balance],
+                index
+              ) => {
 
-              if (index === 0) medal = "🥇";
-              if (index === 1) medal = "🥈";
-              if (index === 2) medal = "🥉";
-
-              return (
-                `${medal} <@${userId}>\n` +
-                `└ **${money(balance, settings)}**`
-              );
-            }
-          )
-          .join("\n\n");
+                const medal =
+                  index === 0
+                    ? "🥇"
+                    : index === 1
+                      ? "🥈"
+                      : index === 2
+                        ? "🥉"
+                        : `#${index + 1}`;
 
 
-        const embed =
-          new EmbedBuilder()
+                return (
+                  `${medal} <@${userId}>\n` +
+                  `└ **${money(
+                    balance,
+                    settings
+                  )}**`
+                );
 
-            .setColor("#FEE75C")
-
-            .setTitle(
-              `🏆 أغنى أعضاء ${settings.currencyName}`
+              }
             )
 
-            .setDescription(description)
-
-            .setFooter({
-              text: "KRX • Zyro Leaderboard"
-            })
-
-            .setTimestamp();
+            .join(
+              "\n\n"
+            );
 
 
         return message.reply({
-          embeds: [embed]
+
+          embeds: [
+
+            new EmbedBuilder()
+
+              .setColor(
+                "#FEE75C"
+              )
+
+              .setTitle(
+                `🏆 أغنى أعضاء ${settings.currencyName}`
+              )
+
+              .setDescription(
+                description
+              )
+
+              .setFooter({
+                text:
+                  "KRX • Zyro Leaderboard"
+              })
+
+              .setTimestamp()
+
+          ]
+
         });
       }
 
 
       // ====================================
-      // TRANSFER ZYRO
+      // TRANSFER
       // zpay @user 500
       // ====================================
 
       if (
-        args[0].toLowerCase() ===
+        command ===
         settings.transferCommand.toLowerCase()
       ) {
 
         const target =
           message.mentions.members.first();
 
+
         const amount =
-          Number(args[2]);
+          Number(
+            args[2]
+          );
 
 
         if (!target) {
+
           return message.reply(
             `❌ الاستخدام: \`${settings.transferCommand} @user 500\``
           );
         }
 
 
-        if (target.user.bot) {
+        if (
+          target.user.bot
+        ) {
+
           return message.reply(
-            "❌ لا يمكنك تحويل Zyro إلى بوت."
+            "❌ لا يمكنك التحويل إلى بوت."
           );
         }
 
@@ -729,6 +1179,7 @@ function registerZyro(client) {
           target.id ===
           message.author.id
         ) {
+
           return message.reply(
             "❌ لا يمكنك التحويل لنفسك."
           );
@@ -736,30 +1187,39 @@ function registerZyro(client) {
 
 
         if (
-          !Number.isSafeInteger(amount) ||
+          !Number.isSafeInteger(
+            amount
+          ) ||
           amount <= 0
         ) {
+
           return message.reply(
             "❌ اكتب مبلغًا صحيحًا أكبر من 0."
           );
         }
 
 
-        const currentBalance =
+        const balance =
           getBalance(
             message.guild.id,
             message.author.id
           );
 
 
-        if (currentBalance < amount) {
+        if (
+          balance <
+          amount
+        ) {
 
           return message.reply({
+
             embeds: [
 
               new EmbedBuilder()
 
-                .setColor("#ED4245")
+                .setColor(
+                  "#ED4245"
+                )
 
                 .setTitle(
                   "❌ رصيد غير كافي"
@@ -767,19 +1227,26 @@ function registerZyro(client) {
 
                 .setDescription(
 `💸 المبلغ:
-**${money(amount, settings)}**
+**${money(
+  amount,
+  settings
+)}**
 
 💰 رصيدك:
-**${money(currentBalance, settings)}**
+**${money(
+  balance,
+  settings
+)}**
 
 📉 ينقصك:
 **${money(
-  amount - currentBalance,
+  amount - balance,
   settings
 )}**`
                 )
 
             ]
+
           });
         }
 
@@ -789,27 +1256,41 @@ function registerZyro(client) {
             message.author.id
           )
         ) {
+
           return message.reply(
             "❌ لديك عملية تحويل معلقة بالفعل."
           );
         }
 
 
-        const transactionId =
+        const operationId =
           `${message.author.id}-${Date.now()}`;
 
 
         pendingTransfers.set(
           message.author.id,
           {
-            id: transactionId,
-            guildId: message.guild.id,
-            channelId: message.channel.id,
-            senderId: message.author.id,
-            targetId: target.id,
+
+            id:
+              operationId,
+
+            guildId:
+              message.guild.id,
+
+            channelId:
+              message.channel.id,
+
+            senderId:
+              message.author.id,
+
+            targetId:
+              target.id,
+
             amount,
-            stage: "confirm",
-            createdAt: Date.now()
+
+            stage:
+              "confirm"
+
           }
         );
 
@@ -822,14 +1303,16 @@ function registerZyro(client) {
               new ButtonBuilder()
 
                 .setCustomId(
-                  `zyro_transfer_confirm:${transactionId}`
+                  `zyro_transfer_confirm:${operationId}`
                 )
 
                 .setLabel(
                   "تأكيد التحويل"
                 )
 
-                .setEmoji("✅")
+                .setEmoji(
+                  "✅"
+                )
 
                 .setStyle(
                   ButtonStyle.Success
@@ -839,12 +1322,16 @@ function registerZyro(client) {
               new ButtonBuilder()
 
                 .setCustomId(
-                  `zyro_transfer_cancel:${transactionId}`
+                  `zyro_transfer_cancel:${operationId}`
                 )
 
-                .setLabel("إلغاء")
+                .setLabel(
+                  "إلغاء"
+                )
 
-                .setEmoji("❌")
+                .setEmoji(
+                  "❌"
+                )
 
                 .setStyle(
                   ButtonStyle.Danger
@@ -853,68 +1340,65 @@ function registerZyro(client) {
             );
 
 
-        const embed =
-          new EmbedBuilder()
+        await message.reply({
 
-            .setColor("#5865F2")
+          embeds: [
 
-            .setTitle(
-              "💠 تأكيد تحويل Zyro"
-            )
+            new EmbedBuilder()
 
-            .setDescription(
-`👤 **التحويل إلى:**
+              .setColor(
+                "#5865F2"
+              )
+
+              .setTitle(
+                "💠 تأكيد تحويل Zyro"
+              )
+
+              .setDescription(
+`👤 **إلى:**
 ${target}
 
 💸 **المبلغ:**
-${money(amount, settings)}
+${money(
+  amount,
+  settings
+)}
 
 💰 **رصيدك الحالي:**
-${money(currentBalance, settings)}
-
-💳 **رصيدك بعد التحويل:**
 ${money(
-  currentBalance - amount,
+  balance,
+  settings
+)}
+
+💳 **بعد التحويل:**
+${money(
+  balance - amount,
   settings
 )}
 
 اضغط **تأكيد التحويل** للمتابعة.`
-            )
+              )
 
-            .setFooter({
-              text:
-                "لن يتم خصم الرصيد قبل التحقق"
-            })
+              .setFooter({
+                text:
+                  "لن يتم الخصم قبل كتابة الكود الصحيح"
+              })
 
-            .setTimestamp();
+              .setTimestamp()
 
+          ],
 
-        await message.reply({
-          embeds: [embed],
-          components: [row]
+          components: [
+            row
+          ]
+
         });
 
 
-        setTimeout(
-          () => {
-
-            const pending =
-              pendingTransfers.get(
-                message.author.id
-              );
-
-            if (
-              pending &&
-              pending.id === transactionId &&
-              pending.stage === "confirm"
-            ) {
-              pendingTransfers.delete(
-                message.author.id
-              );
-            }
-
-          },
-          120000
+        expirePending(
+          pendingTransfers,
+          message.author.id,
+          operationId
         );
 
 
@@ -922,15 +1406,17 @@ ${money(
       }
 
     }
+
   );
 
 
   // ========================================
-  // TRANSFER BUTTONS
+  // TRANSFER INTERACTIONS
   // ========================================
 
   client.on(
     Events.InteractionCreate,
+
     async interaction => {
 
       if (
@@ -951,11 +1437,10 @@ ${money(
         )
       ) {
 
-        const transactionId =
-          interaction.customId
-            .slice(
-              "zyro_transfer_cancel:".length
-            );
+        const operationId =
+          interaction.customId.slice(
+            "zyro_transfer_cancel:".length
+          );
 
 
         const pending =
@@ -966,12 +1451,18 @@ ${money(
 
         if (
           !pending ||
-          pending.id !== transactionId
+          pending.id !==
+            operationId
         ) {
+
           return interaction.reply({
+
             content:
               "❌ العملية انتهت أو ليست خاصة بك.",
-            ephemeral: true
+
+            ephemeral:
+              true
+
           });
         }
 
@@ -982,22 +1473,27 @@ ${money(
 
 
         return interaction.update({
+
           embeds: [
 
             new EmbedBuilder()
 
-              .setColor("#ED4245")
+              .setColor(
+                "#ED4245"
+              )
 
               .setTitle(
                 "❌ تم إلغاء التحويل"
               )
 
               .setDescription(
-                "لم يتم خصم أي Zyro من حسابك."
+                "لم يتم خصم أي Zyro."
               )
 
           ],
+
           components: []
+
         });
       }
 
@@ -1012,11 +1508,10 @@ ${money(
         )
       ) {
 
-        const transactionId =
-          interaction.customId
-            .slice(
-              "zyro_transfer_confirm:".length
-            );
+        const operationId =
+          interaction.customId.slice(
+            "zyro_transfer_confirm:".length
+          );
 
 
         const pending =
@@ -1027,23 +1522,35 @@ ${money(
 
         if (
           !pending ||
-          pending.id !== transactionId
+          pending.id !==
+            operationId
         ) {
+
           return interaction.reply({
+
             content:
               "❌ العملية انتهت أو ليست خاصة بك.",
-            ephemeral: true
+
+            ephemeral:
+              true
+
           });
         }
 
 
         if (
-          pending.stage !== "confirm"
+          pending.stage !==
+          "confirm"
         ) {
+
           return interaction.reply({
+
             content:
               "❌ تم تأكيد العملية بالفعل.",
-            ephemeral: true
+
+            ephemeral:
+              true
+
           });
         }
 
@@ -1056,19 +1563,24 @@ ${money(
 
 
         if (
-          balance < pending.amount
+          balance <
+          pending.amount
         ) {
 
           pendingTransfers.delete(
             interaction.user.id
           );
 
+
           return interaction.update({
+
             embeds: [
 
               new EmbedBuilder()
 
-                .setColor("#ED4245")
+                .setColor(
+                  "#ED4245"
+                )
 
                 .setTitle(
                   "❌ تم إلغاء التحويل"
@@ -1079,44 +1591,55 @@ ${money(
                 )
 
             ],
+
             components: []
+
           });
         }
 
 
-        const code = createCode();
+        const code =
+          makeCode();
 
-        pending.code = code;
-        pending.stage = "captcha";
-        pending.expiresAt =
-          Date.now() + 60000;
+
+        pending.code =
+          code;
+
+
+        pending.stage =
+          "captcha";
 
 
         const image =
-          createCodeImage(code);
+          await makeCodeImage(
+            code
+          );
 
 
         await interaction.update({
+
           embeds: [
 
             new EmbedBuilder()
 
-              .setColor("#FEE75C")
+              .setColor(
+                "#FEE75C"
+              )
 
               .setTitle(
                 "🔐 التحقق من التحويل"
               )
 
               .setDescription(
-`اكتب **الأرقام الأربعة الموجودة في الصورة** في الشات.
+`اكتب **الأرقام الأربعة الموجودة في الصورة**.
 
 ⏱️ أمامك **60 ثانية**.
 
-لن يتم خصم أي Zyro حتى تكتب الرقم الصحيح.`
+لن يتم خصم أي Zyro حتى تكتب الكود الصحيح.`
               )
 
               .setImage(
-                "attachment://zyro-code.svg"
+                "attachment://zyro-code.png"
               )
 
               .setFooter({
@@ -1126,16 +1649,24 @@ ${money(
 
           ],
 
-          files: [image],
+          files: [
+            image
+          ],
+
           components: []
+
         });
 
 
         const filter =
-          msg =>
-            msg.author.id ===
-              interaction.user.id &&
-            msg.channel.id ===
+          message =>
+
+            message.author.id ===
+              interaction.user.id
+
+            &&
+
+            message.channel.id ===
               interaction.channel.id;
 
 
@@ -1144,10 +1675,19 @@ ${money(
           const collected =
             await interaction.channel
               .awaitMessages({
+
                 filter,
-                max: 1,
-                time: 60000,
-                errors: ["time"]
+
+                max:
+                  1,
+
+                time:
+                  60000,
+
+                errors: [
+                  "time"
+                ]
+
               });
 
 
@@ -1166,29 +1706,36 @@ ${money(
 
           if (
             !current ||
-            current.id !== transactionId
+            current.id !==
+              operationId
           ) {
+
             return;
           }
 
 
           if (
-            answer !== current.code
+            answer !==
+            current.code
           ) {
 
             pendingTransfers.delete(
               interaction.user.id
             );
 
+
             return interaction.channel.send({
+
               embeds: [
 
                 new EmbedBuilder()
 
-                  .setColor("#ED4245")
+                  .setColor(
+                    "#ED4245"
+                  )
 
                   .setTitle(
-                    "❌ الرقم غير صحيح"
+                    "❌ الكود غير صحيح"
                   )
 
                   .setDescription(
@@ -1196,13 +1743,10 @@ ${money(
                   )
 
               ]
+
             });
           }
 
-
-          // ==================================
-          // FINAL BALANCE CHECK
-          // ==================================
 
           const senderBalance =
             getBalance(
@@ -1220,8 +1764,9 @@ ${money(
               interaction.user.id
             );
 
+
             return interaction.channel.send(
-              "❌ رصيدك لم يعد كافيًا. لم يتم التحويل."
+              "❌ رصيدك لم يعد كافيًا."
             );
           }
 
@@ -1233,21 +1778,19 @@ ${money(
             );
 
 
-          // ==================================
-          // EXECUTE TRANSFER
-          // ==================================
-
           setBalance(
             interaction.guild.id,
             interaction.user.id,
-            senderBalance - current.amount
+            senderBalance -
+              current.amount
           );
 
 
           setBalance(
             interaction.guild.id,
             current.targetId,
-            receiverBalance + current.amount
+            receiverBalance +
+              current.amount
           );
 
 
@@ -1262,7 +1805,7 @@ ${money(
             ).settings;
 
 
-          const newBalance =
+          const newSenderBalance =
             getBalance(
               interaction.guild.id,
               interaction.user.id
@@ -1270,18 +1813,24 @@ ${money(
 
 
           await interaction.channel.send({
+
+            content:
+              `${interaction.user}`,
+
             embeds: [
 
               new EmbedBuilder()
 
-                .setColor("#57F287")
+                .setColor(
+                  "#57F287"
+                )
 
                 .setTitle(
-                  "✅ تم تحويل Zyro"
+                  "✅ تم التحويل"
                 )
 
                 .setDescription(
-`${interaction.user} أرسل:
+`تم تحويل:
 
 **${money(
   current.amount,
@@ -1293,7 +1842,7 @@ ${money(
 
 💰 رصيدك الآن:
 **${money(
-  newBalance,
+  newSenderBalance,
   guildSettings
 )}**`
                 )
@@ -1306,17 +1855,18 @@ ${money(
                 .setTimestamp()
 
             ]
+
           });
 
 
-          // ==================================
-          // DM RECEIVER
-          // ==================================
-
           const receiver =
             await interaction.guild.members
-              .fetch(current.targetId)
-              .catch(() => null);
+              .fetch(
+                current.targetId
+              )
+              .catch(
+                () => null
+              );
 
 
           if (receiver) {
@@ -1329,14 +1879,17 @@ ${money(
 
 
             await receiver.send({
+
               embeds: [
 
                 new EmbedBuilder()
 
-                  .setColor("#57F287")
+                  .setColor(
+                    "#57F287"
+                  )
 
                   .setTitle(
-                    "💠 استلمت Zyro!"
+                    "💠 استلمت Zyro"
                   )
 
                   .setDescription(
@@ -1357,7 +1910,10 @@ ${money(
                   .setTimestamp()
 
               ]
-            }).catch(() => {});
+
+            }).catch(
+              () => {}
+            );
           }
 
 
@@ -1370,8 +1926,8 @@ ${money(
 
 
           if (
-            current &&
-            current.id === transactionId
+            current?.id ===
+              operationId
           ) {
 
             pendingTransfers.delete(
@@ -1380,6 +1936,7 @@ ${money(
 
 
             await interaction.channel.send({
+
               content:
                 `${interaction.user}`,
 
@@ -1387,7 +1944,9 @@ ${money(
 
                 new EmbedBuilder()
 
-                  .setColor("#ED4245")
+                  .setColor(
+                    "#ED4245"
+                  )
 
                   .setTitle(
                     "⌛ انتهى الوقت"
@@ -1398,7 +1957,10 @@ ${money(
                   )
 
               ]
-            }).catch(() => {});
+
+            }).catch(
+              () => {}
+            );
           }
 
         }
@@ -1408,13 +1970,15 @@ ${money(
       }
 
     }
+
   );
     // ========================================
-  // ZYRO SHOP MESSAGE COMMANDS
+  // ZYRO SHOP COMMANDS
   // ========================================
 
   client.on(
     Events.MessageCreate,
+
     async message => {
 
       if (
@@ -1430,24 +1994,23 @@ ${money(
           message.guild.id
         );
 
+
       const settings =
         data.settings;
+
+
+      const shop =
+        getShop(
+          message.guild.id
+        );
+
 
       const content =
         message.content.trim();
 
 
-      if (
-        !Array.isArray(
-          zyroShop[message.guild.id]
-        )
-      ) {
-        zyroShop[message.guild.id] = [];
-      }
-
-
-      const guildShop =
-        zyroShop[message.guild.id];
+      const lowerContent =
+        content.toLowerCase();
 
 
       // ====================================
@@ -1456,54 +2019,70 @@ ${money(
       // ====================================
 
       if (
-        content.toLowerCase() ===
+        lowerContent ===
         settings.shopCommand.toLowerCase()
       ) {
 
-        if (!guildShop.length) {
+        if (
+          !shop.length
+        ) {
 
           return message.reply({
+
             embeds: [
 
               new EmbedBuilder()
 
-                .setColor("#5865F2")
+                .setColor(
+                  "#5865F2"
+                )
 
                 .setTitle(
-                  `🛒 ${settings.currencyName} Shop`
+                  `🛒 متجر ${settings.currencyName}`
                 )
 
                 .setDescription(
-                  "❌ لا توجد منتجات في المتجر حاليًا."
+                  "❌ المتجر فارغ حاليًا."
                 )
 
+                .setFooter({
+                  text:
+                    "KRX • Zyro Shop"
+                })
+
             ]
+
           });
         }
 
 
-        const products =
-          guildShop
+        const description =
+          shop
+
             .map(
-              (item, index) => {
+              (
+                product,
+                index
+              ) => {
 
                 return (
-`**${index + 1}. ${item.emoji || "🛒"} ${item.name}**
+`**${index + 1}. ${product.emoji || "🛒"} ${product.name}**
 
-${item.description || "بدون وصف"}
+${product.description || "بدون وصف"}
 
-💠 السعر:
-**${money(
-  Number(item.price),
+💠 **السعر:**
+${money(
+  Number(product.price),
   settings
-)}**
+)}
 
-🛍️ للشراء:
+🛍️ **للشراء:**
 \`${settings.buyCommand} ${index + 1}\``
                 );
 
               }
             )
+
             .join(
               "\n\n━━━━━━━━━━━━━━\n\n"
             );
@@ -1516,59 +2095,65 @@ ${item.description || "بدون وصف"}
           );
 
 
-        const embed =
-          new EmbedBuilder()
+        return message.reply({
 
-            .setColor("#5865F2")
+          embeds: [
 
-            .setTitle(
-              `💠 ${settings.currencyName} Shop`
-            )
+            new EmbedBuilder()
 
-            .setDescription(
-`${products}
+              .setColor(
+                "#5865F2"
+              )
+
+              .setTitle(
+                `🛒 متجر ${settings.currencyName}`
+              )
+
+              .setDescription(
+`${description}
 
 ━━━━━━━━━━━━━━
 
-💰 رصيدك الحالي:
-**${money(
+💰 **رصيدك الحالي:**
+${money(
   balance,
   settings
-)}**`
-            )
+)}`
+              )
 
-            .setFooter({
-              text:
-                `للشراء: ${settings.buyCommand} رقم المنتج`
-            })
+              .setFooter({
+                text:
+                  `للشراء: ${settings.buyCommand} رقم المنتج`
+              })
 
-            .setTimestamp();
+              .setTimestamp()
 
+          ]
 
-        return message.reply({
-          embeds: [embed]
         });
       }
 
 
       // ====================================
-      // BUY COMMAND
+      // BUY PRODUCT
       // !zbuy 1
       // ====================================
 
       const buyCommand =
-        settings.buyCommand.toLowerCase();
+        settings.buyCommand
+          .toLowerCase();
 
 
       if (
-        content.toLowerCase() ===
+        lowerContent ===
           buyCommand ||
-        content.toLowerCase().startsWith(
+
+        lowerContent.startsWith(
           buyCommand + " "
         )
       ) {
 
-        const value =
+        const numberText =
           content
             .slice(
               settings.buyCommand.length
@@ -1577,18 +2162,28 @@ ${item.description || "بدون وصف"}
 
 
         const productNumber =
-          Number(value);
+          Number(
+            numberText
+          );
+
 
         const productIndex =
           productNumber - 1;
 
+
         const product =
-          guildShop[productIndex];
+          shop[
+            productIndex
+          ];
 
 
         if (
-          !Number.isInteger(productNumber) ||
+          !Number.isInteger(
+            productNumber
+          ) ||
+
           productNumber <= 0 ||
+
           !product
         ) {
 
@@ -1599,16 +2194,21 @@ ${item.description || "بدون وصف"}
 
 
         const price =
-          Number(product.price);
+          Number(
+            product.price
+          );
 
 
         if (
-          !Number.isSafeInteger(price) ||
+          !Number.isSafeInteger(
+            price
+          ) ||
+
           price <= 0
         ) {
 
           return message.reply(
-            "❌ سعر هذا المنتج غير صحيح."
+            "❌ سعر المنتج غير صحيح."
           );
         }
 
@@ -1621,44 +2221,49 @@ ${item.description || "بدون وصف"}
 
 
         if (
-          balance < price
+          balance <
+          price
         ) {
 
           return message.reply({
+
             embeds: [
 
               new EmbedBuilder()
 
-                .setColor("#ED4245")
+                .setColor(
+                  "#ED4245"
+                )
 
                 .setTitle(
                   "❌ رصيد غير كافي"
                 )
 
                 .setDescription(
-`🛒 المنتج:
-**${product.name}**
+`🛒 **المنتج:**
+${product.name}
 
-💠 السعر:
-**${money(
+💠 **السعر:**
+${money(
   price,
   settings
-)}**
+)}
 
-💰 رصيدك:
-**${money(
+💰 **رصيدك:**
+${money(
   balance,
   settings
-)}**
+)}
 
-📉 ينقصك:
-**${money(
+📉 **ينقصك:**
+${money(
   price - balance,
   settings
-)}**`
+)}`
                 )
 
             ]
+
           });
         }
 
@@ -1675,14 +2280,16 @@ ${item.description || "بدون وصف"}
         }
 
 
-        const purchaseId =
+        const operationId =
           `${message.author.id}-${Date.now()}`;
 
 
         pendingPurchases.set(
           message.author.id,
           {
-            id: purchaseId,
+
+            id:
+              operationId,
 
             guildId:
               message.guild.id,
@@ -1696,19 +2303,22 @@ ${item.description || "بدون وصف"}
             productIndex,
 
             productName:
-              String(product.name),
+              String(
+                product.name
+              ),
 
             price,
 
             roleId:
               product.roleId
-                ? String(product.roleId)
-                : null,
+                ? String(
+                    product.roleId
+                  )
+                : "",
 
-            stage: "confirm",
+            stage:
+              "confirm"
 
-            createdAt:
-              Date.now()
           }
         );
 
@@ -1721,14 +2331,16 @@ ${item.description || "بدون وصف"}
               new ButtonBuilder()
 
                 .setCustomId(
-                  `zyro_buy_confirm:${purchaseId}`
+                  `zyro_buy_confirm:${operationId}`
                 )
 
                 .setLabel(
                   "تأكيد الشراء"
                 )
 
-                .setEmoji("✅")
+                .setEmoji(
+                  "✅"
+                )
 
                 .setStyle(
                   ButtonStyle.Success
@@ -1738,12 +2350,16 @@ ${item.description || "بدون وصف"}
               new ButtonBuilder()
 
                 .setCustomId(
-                  `zyro_buy_cancel:${purchaseId}`
+                  `zyro_buy_cancel:${operationId}`
                 )
 
-                .setLabel("إلغاء")
+                .setLabel(
+                  "إلغاء"
+                )
 
-                .setEmoji("❌")
+                .setEmoji(
+                  "❌"
+                )
 
                 .setStyle(
                   ButtonStyle.Danger
@@ -1752,16 +2368,21 @@ ${item.description || "بدون وصف"}
             );
 
 
-        const embed =
-          new EmbedBuilder()
+        await message.reply({
 
-            .setColor("#5865F2")
+          embeds: [
 
-            .setTitle(
-              "🛒 تأكيد عملية الشراء"
-            )
+            new EmbedBuilder()
 
-            .setDescription(
+              .setColor(
+                "#5865F2"
+              )
+
+              .setTitle(
+                "🛒 تأكيد عملية الشراء"
+              )
+
+              .setDescription(
 `${product.emoji || "🛒"} **المنتج:**
 ${product.name}
 
@@ -1784,45 +2405,28 @@ ${money(
 )}
 
 اضغط **تأكيد الشراء** للمتابعة.`
-            )
+              )
 
-            .setFooter({
-              text:
-                "لن يتم خصم الرصيد قبل التحقق"
-            })
+              .setFooter({
+                text:
+                  "لن يتم الخصم قبل كتابة الكود الصحيح"
+              })
 
-            .setTimestamp();
+              .setTimestamp()
 
+          ],
 
-        await message.reply({
-          embeds: [embed],
-          components: [row]
+          components: [
+            row
+          ]
+
         });
 
 
-        setTimeout(
-          () => {
-
-            const pending =
-              pendingPurchases.get(
-                message.author.id
-              );
-
-
-            if (
-              pending &&
-              pending.id === purchaseId &&
-              pending.stage === "confirm"
-            ) {
-
-              pendingPurchases.delete(
-                message.author.id
-              );
-
-            }
-
-          },
-          120000
+        expirePending(
+          pendingPurchases,
+          message.author.id,
+          operationId
         );
 
 
@@ -1830,15 +2434,17 @@ ${money(
       }
 
     }
+
   );
 
 
   // ========================================
-  // ZYRO SHOP BUTTONS
+  // SHOP INTERACTIONS
   // ========================================
 
   client.on(
     Events.InteractionCreate,
+
     async interaction => {
 
       if (
@@ -1859,7 +2465,7 @@ ${money(
         )
       ) {
 
-        const purchaseId =
+        const operationId =
           interaction.customId.slice(
             "zyro_buy_cancel:".length
           );
@@ -1873,14 +2479,18 @@ ${money(
 
         if (
           !pending ||
-          pending.id !== purchaseId
+          pending.id !==
+            operationId
         ) {
 
           return interaction.reply({
+
             content:
               "❌ العملية انتهت أو ليست خاصة بك.",
 
-            ephemeral: true
+            ephemeral:
+              true
+
           });
         }
 
@@ -1891,23 +2501,27 @@ ${money(
 
 
         return interaction.update({
+
           embeds: [
 
             new EmbedBuilder()
 
-              .setColor("#ED4245")
+              .setColor(
+                "#ED4245"
+              )
 
               .setTitle(
                 "❌ تم إلغاء الشراء"
               )
 
               .setDescription(
-                "لم يتم خصم أي Zyro من حسابك."
+                "لم يتم خصم أي Zyro."
               )
 
           ],
 
           components: []
+
         });
       }
 
@@ -1922,7 +2536,7 @@ ${money(
         )
       ) {
 
-        const purchaseId =
+        const operationId =
           interaction.customId.slice(
             "zyro_buy_confirm:".length
           );
@@ -1936,34 +2550,38 @@ ${money(
 
         if (
           !pending ||
-          pending.id !== purchaseId
+          pending.id !==
+            operationId
         ) {
 
           return interaction.reply({
+
             content:
               "❌ العملية انتهت أو ليست خاصة بك.",
 
-            ephemeral: true
+            ephemeral:
+              true
+
           });
         }
 
 
         if (
-          pending.stage !== "confirm"
+          pending.stage !==
+          "confirm"
         ) {
 
           return interaction.reply({
+
             content:
               "❌ تم تأكيد العملية بالفعل.",
 
-            ephemeral: true
+            ephemeral:
+              true
+
           });
         }
 
-
-        // ==================================
-        // CHECK BALANCE AGAIN
-        // ==================================
 
         const balance =
           getBalance(
@@ -1973,7 +2591,8 @@ ${money(
 
 
         if (
-          balance < pending.price
+          balance <
+          pending.price
         ) {
 
           pendingPurchases.delete(
@@ -1982,11 +2601,14 @@ ${money(
 
 
           return interaction.update({
+
             embeds: [
 
               new EmbedBuilder()
 
-                .setColor("#ED4245")
+                .setColor(
+                  "#ED4245"
+                )
 
                 .setTitle(
                   "❌ تم إلغاء الشراء"
@@ -1999,51 +2621,53 @@ ${money(
             ],
 
             components: []
+
           });
         }
 
 
-        // ==================================
-        // CREATE 4 DIGIT CODE
-        // ==================================
-
         const code =
-          createCode();
+          makeCode();
 
 
-        pending.code = code;
-        pending.stage = "captcha";
-        pending.expiresAt =
-          Date.now() + 60000;
+        pending.code =
+          code;
+
+
+        pending.stage =
+          "captcha";
 
 
         const image =
-          createCodeImage(code);
+          await makeCodeImage(
+            code
+          );
 
 
         await interaction.update({
+
           embeds: [
 
             new EmbedBuilder()
 
-              .setColor("#FEE75C")
+              .setColor(
+                "#FEE75C"
+              )
 
               .setTitle(
-                "🔐 تأكيد عملية الشراء"
+                "🔐 التحقق من الشراء"
               )
 
               .setDescription(
-`اكتب **الأرقام الأربعة الموجودة في الصورة** في الشات.
+`اكتب **الأرقام الأربعة الموجودة في الصورة**.
 
 ⏱️ أمامك **60 ثانية**.
 
-إذا كتبت الرقم الصحيح سيتم إكمال عملية الشراء.
-
-إذا أخطأت أو انتهى الوقت فلن يتم خصم أي Zyro.`
+لن يتم خصم أي Zyro حتى تكتب الكود الصحيح.`
               )
 
               .setImage(
-                "attachment://zyro-code.svg"
+                "attachment://zyro-code.png"
               )
 
               .setFooter({
@@ -2053,16 +2677,24 @@ ${money(
 
           ],
 
-          files: [image],
+          files: [
+            image
+          ],
+
           components: []
+
         });
 
 
         const filter =
-          msg =>
-            msg.author.id ===
-              interaction.user.id &&
-            msg.channel.id ===
+          message =>
+
+            message.author.id ===
+              interaction.user.id
+
+            &&
+
+            message.channel.id ===
               interaction.channel.id;
 
 
@@ -2071,10 +2703,19 @@ ${money(
           const collected =
             await interaction.channel
               .awaitMessages({
+
                 filter,
-                max: 1,
-                time: 60000,
-                errors: ["time"]
+
+                max:
+                  1,
+
+                time:
+                  60000,
+
+                errors: [
+                  "time"
+                ]
+
               });
 
 
@@ -2093,18 +2734,17 @@ ${money(
 
           if (
             !current ||
-            current.id !== purchaseId
+            current.id !==
+              operationId
           ) {
+
             return;
           }
 
 
-          // ==================================
-          // WRONG SECURITY CODE
-          // ==================================
-
           if (
-            answer !== current.code
+            answer !==
+            current.code
           ) {
 
             pendingPurchases.delete(
@@ -2113,14 +2753,17 @@ ${money(
 
 
             return interaction.channel.send({
+
               embeds: [
 
                 new EmbedBuilder()
 
-                  .setColor("#ED4245")
+                  .setColor(
+                    "#ED4245"
+                  )
 
                   .setTitle(
-                    "❌ الرقم غير صحيح"
+                    "❌ الكود غير صحيح"
                   )
 
                   .setDescription(
@@ -2128,33 +2771,26 @@ ${money(
                   )
 
               ]
+
             });
           }
 
 
-          // ==================================
-          // GET PRODUCT AGAIN
-          // ==================================
-
-          const currentShop =
-            Array.isArray(
-              zyroShop[
-                interaction.guild.id
-              ]
-            )
-              ? zyroShop[
-                  interaction.guild.id
-                ]
-              : [];
+          const shop =
+            getShop(
+              interaction.guild.id
+            );
 
 
           const product =
-            currentShop[
+            shop[
               current.productIndex
             ];
 
 
-          if (!product) {
+          if (
+            !product
+          ) {
 
             pendingPurchases.delete(
               interaction.user.id
@@ -2168,9 +2804,14 @@ ${money(
 
 
           if (
-            String(product.name) !==
+            String(
+              product.name
+            ) !==
               current.productName ||
-            Number(product.price) !==
+
+            Number(
+              product.price
+            ) !==
               current.price
           ) {
 
@@ -2180,14 +2821,10 @@ ${money(
 
 
             return interaction.channel.send(
-              "❌ تم تعديل المنتج أثناء عملية الشراء. لم يتم الخصم."
+              "❌ تم تعديل المنتج أثناء الشراء. لم يتم الخصم."
             );
           }
 
-
-          // ==================================
-          // FINAL BALANCE CHECK
-          // ==================================
 
           const finalBalance =
             getBalance(
@@ -2207,19 +2844,18 @@ ${money(
 
 
             return interaction.channel.send(
-              "❌ رصيدك لم يعد كافيًا. لم يتم الخصم."
+              "❌ رصيدك لم يعد كافيًا."
             );
           }
 
 
-          // ==================================
-          // CHECK PRODUCT ROLE
-          // ==================================
-
-          let role = null;
+          let role =
+            null;
 
 
-          if (current.roleId) {
+          if (
+            current.roleId
+          ) {
 
             role =
               interaction.guild.roles.cache.get(
@@ -2227,7 +2863,9 @@ ${money(
               );
 
 
-            if (!role) {
+            if (
+              !role
+            ) {
 
               pendingPurchases.delete(
                 interaction.user.id
@@ -2252,7 +2890,7 @@ ${money(
 
 
               return interaction.channel.send(
-                "❌ أنت تمتلك هذه الرتبة بالفعل. لم يتم الخصم."
+                "❌ أنت تمتلك هذه الرتبة بالفعل."
               );
             }
 
@@ -2263,6 +2901,7 @@ ${money(
 
             if (
               !botMember ||
+
               role.position >=
                 botMember.roles.highest.position
             ) {
@@ -2273,24 +2912,17 @@ ${money(
 
 
               return interaction.channel.send(
-                "❌ رتبة البوت يجب أن تكون أعلى من رتبة المنتج. لم يتم الخصم."
+                "❌ ارفع رتبة البوت فوق رتبة المنتج. لم يتم الخصم."
               );
             }
 
-          }
-
-
-          // ==================================
-          // GIVE ROLE
-          // ==================================
-
-          if (role) {
 
             try {
 
               await interaction.member.roles.add(
                 role
               );
+
 
             } catch (error) {
 
@@ -2306,16 +2938,12 @@ ${money(
 
 
               return interaction.channel.send(
-                "❌ لم أستطع إعطاء الرتبة، لذلك لم يتم الخصم."
+                "❌ فشل إعطاء الرتبة، لذلك لم يتم الخصم."
               );
             }
 
           }
 
-
-          // ==================================
-          // CHARGE
-          // ==================================
 
           const newBalance =
             setBalance(
@@ -2331,17 +2959,14 @@ ${money(
           );
 
 
-          const guildSettings =
+          const settings =
             getZyroGuild(
               interaction.guild.id
             ).settings;
 
 
-          // ==================================
-          // PURCHASE SUCCESS
-          // ==================================
-
           return interaction.channel.send({
+
             content:
               `${interaction.user}`,
 
@@ -2349,7 +2974,9 @@ ${money(
 
               new EmbedBuilder()
 
-                .setColor("#57F287")
+                .setColor(
+                  "#57F287"
+                )
 
                 .setTitle(
                   "✅ تمت عملية الشراء"
@@ -2362,18 +2989,18 @@ ${product.emoji || "🛒"} ${product.name}
 💠 **تم خصم:**
 ${money(
   current.price,
-  guildSettings
+  settings
 )}
 
 💰 **رصيدك الجديد:**
 ${money(
   newBalance,
-  guildSettings
+  settings
 )}
 
 ${role
   ? `🎉 تم إعطاؤك الرتبة ${role}`
-  : "🎉 تمت عملية الشراء بنجاح."}`
+  : "🎉 تم تسجيل عملية الشراء بنجاح."}`
                 )
 
                 .setFooter({
@@ -2384,6 +3011,7 @@ ${role
                 .setTimestamp()
 
             ]
+
           });
 
 
@@ -2396,8 +3024,8 @@ ${role
 
 
           if (
-            current &&
-            current.id === purchaseId
+            current?.id ===
+              operationId
           ) {
 
             pendingPurchases.delete(
@@ -2406,6 +3034,7 @@ ${role
 
 
             await interaction.channel.send({
+
               content:
                 `${interaction.user}`,
 
@@ -2413,7 +3042,9 @@ ${role
 
                 new EmbedBuilder()
 
-                  .setColor("#ED4245")
+                  .setColor(
+                    "#ED4245"
+                  )
 
                   .setTitle(
                     "⌛ انتهى الوقت"
@@ -2424,8 +3055,10 @@ ${role
                   )
 
               ]
-            }).catch(() => {});
 
+            }).catch(
+              () => {}
+            );
           }
 
         }
@@ -2435,12 +3068,9 @@ ${role
       }
 
     }
+
   );
 
-
-  // ========================================
-  // ZYRO READY
-  // ========================================
 
   console.log(
     "💠 Zyro Economy loaded"
@@ -2454,19 +3084,27 @@ ${role
 // ==========================================
 
 module.exports = {
+
   registerZyro,
 
   getZyroGuild,
 
   getBalance,
+
   setBalance,
+
   addBalance,
+
   removeBalance,
 
   saveZyro,
+
   saveZyroShop,
 
   get zyroShop() {
+
     return zyroShop;
+
   }
+
 };
