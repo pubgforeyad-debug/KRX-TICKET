@@ -2,6 +2,7 @@ const express = require("express");
 const session = require("express-session");
 const crypto = require("crypto");
 const path = require("path");
+const BOT_OWNER_ID = process.env.BOT_OWNER_ID;
 
 const {
   ChannelType,
@@ -270,6 +271,43 @@ module.exports = function startDashboard(ctx) {
     next();
 
   }
+  function requireBotOwner(
+  req,
+  res,
+  next
+) {
+
+  if (
+    !BOT_OWNER_ID
+  ) {
+
+    return res
+      .status(500)
+      .send(
+        "❌ BOT_OWNER_ID غير موجود في Railway Variables."
+      );
+
+  }
+
+
+  if (
+    !req.session?.user ||
+    String(req.session.user.id) !==
+      String(BOT_OWNER_ID)
+  ) {
+
+    return res
+      .status(403)
+      .send(
+        "❌ التعديل متاح لصاحب البوت فقط."
+      );
+
+  }
+
+
+  return next();
+
+}
 
 
   async function getAllowedGuilds(
@@ -4301,6 +4339,8 @@ app.post(
 
   requireLogin,
 
+  requireBotOwner,
+
   async (req, res) => {
 
 
@@ -4377,8 +4417,7 @@ app.post(
   }
 
 );
-
-
+  
 // ==========================================
 // DELETE SHOP ITEM
 // ==========================================
@@ -4387,6 +4426,8 @@ app.post(
   "/dashboard/:guildId/shop/:index/delete",
 
   requireLogin,
+
+  requireBotOwner,
 
   async (req, res) => {
 
@@ -4431,14 +4472,13 @@ app.post(
 
 
     return res.redirect(
-
       `/dashboard/${guild.id}/shop`
-
     );
 
   }
 
 );
+  
   // ==========================================
 // PANEL EDITOR
 // ==========================================
